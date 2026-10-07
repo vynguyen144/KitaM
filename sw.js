@@ -1,4 +1,4 @@
-const CACHE = "kitam-shell-v6";
+const CACHE = "kitam-shell-v7";
 const ASSETS = ["./","./index.html","./style.css","./script.js","./manifest.json"];
 
 self.addEventListener("install", event => {
