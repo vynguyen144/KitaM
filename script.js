@@ -197,7 +197,7 @@ function bootKitaM(){
   const apiInput=$("#apiBaseInput"),apiStatus=$("#apiStatus");
   if(apiInput){apiInput.value=apiBase();}
   bind("#saveApiBtn","click",()=>{
-    const v=$("#apiBaseInput")?.value.trim().replace(/\\/$/,"")||"";
+    const apiEl=$("#apiBaseInput"); const v=apiEl ? apiEl.value.trim().replace(/\/$/,"") : "";
     if(v){try{new URL(v)}catch(e){toast("URL API không hợp lệ.");return}}
     localStorage.setItem("kitam_api_base",v);if(apiStatus)apiStatus.textContent=v?"Đã cấu hình backend: "+v:"Chưa cấu hình — đang dùng Demo Research.";toast(v?"🔮 Đã lưu Research API.":"Đã chuyển về Demo Research.");
   });
@@ -214,7 +214,7 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
 if("serviceWorker"in navigator)window.addEventListener("load",async()=>{
   try{
     const reg=await navigator.serviceWorker.register("sw.js");
-    $("#updateStatus")?.replaceChildren(document.createTextNode("AUTO UPDATE"));
+    const updateStatus=$("#updateStatus"); if(updateStatus) updateStatus.textContent="AUTO UPDATE";
     reg.addEventListener("updatefound",()=>toast("✨ KitaM đang nhận bản cập nhật mới..."));
   }catch(e){const st=$("#updateStatus");if(st)st.textContent="NO SW";}
 });
