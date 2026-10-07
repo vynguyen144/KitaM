@@ -1,211 +1,37 @@
 <!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#07131c">
-  <meta name="description" content="KitaM - Magical AI Presentation Workshop">
-  <title>KitaM — Magical Presentation Workshop</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#07131c"><meta name="description" content="KitaM - Magical AI Presentation Workshop">
+<title>KitaM — Magical Presentation Workshop</title>
+<link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs" type="module"></script>
 </head>
 <body>
-  <div class="stars" aria-hidden="true"></div>
-
-  <header class="topbar">
-    <button class="brand" data-page="home" aria-label="Về trang chủ">
-      <span class="brand-cat">✦</span>
-      <span>
-        <strong>KitaM</strong>
-        <small>MAGICAL WORKSHOP</small>
-      </span>
-    </button>
-
-    <nav class="topnav" aria-label="Điều hướng">
-      <button class="nav-btn active" data-page="home">⌂ Trang chủ</button>
-      <button class="nav-btn" data-page="templates">▣ Kho mẫu</button>
-      <button class="nav-btn" data-page="projects">▤ Dự án</button>
-      <button class="nav-btn" data-page="settings">⚙ Cài đặt</button>
-    </nav>
-
-    <div class="version">v0.1 • <span id="updateStatus">LOCAL</span></div>
-  </header>
-
-  <main>
-    <section id="home" class="page active">
-      <div class="hero panel">
-        <div class="hero-copy">
-          <div class="eyebrow">✦ PIXEL WITCH PRESENTATION LAB ✦</div>
-          <h1>NIỆM PHÉP<br><span>TẠO SLIDE</span></h1>
-          <p>
-            Chọn một mẫu, đưa nội dung chính vào biểu mẫu,
-            rồi để KitaM chuẩn bị bài thuyết trình cho bạn.
-          </p>
-          <div class="hero-actions">
-            <button class="magic-btn" data-page="create">✦ Tạo bài mới</button>
-            <button class="ghost-btn" data-page="templates">▣ Mở kho mẫu</button>
-          </div>
-        </div>
-
-        <div class="cauldron">
-          <div class="portal">◈</div>
-          <div class="cauldron-pot"></div>
-          <div class="flame"></div>
-          <div class="bubble b1">✦</div>
-          <div class="bubble b2">◆</div>
-          <div class="bubble b3">✧</div>
-          <div class="cauldron-label">KitaM<br><small>AI CORE</small></div>
-        </div>
-      </div>
-
-      <div class="section-title">
-        <div>
-          <span class="eyebrow">QUICK SPELLS</span>
-          <h2>Phép thuật nhanh</h2>
-        </div>
-      </div>
-
-      <div class="quick-grid">
-        <button class="spell-card cyan" data-page="create">
-          <span class="spell-icon">🪄</span>
-          <strong>Tạo slide</strong>
-          <small>Bắt đầu từ nội dung</small>
-        </button>
-        <button class="spell-card green" data-page="templates">
-          <span class="spell-icon">📖</span>
-          <strong>Kho mẫu</strong>
-          <small>Xem và tải template</small>
-        </button>
-        <button class="spell-card orange" data-page="projects">
-          <span class="spell-icon">📜</span>
-          <strong>Dự án</strong>
-          <small>Các bài đã lưu cục bộ</small>
-        </button>
-      </div>
-
-      <div class="notice panel">
-        <span>✧</span>
-        <div>
-          <strong>KitaM đang ở Bản thử nghiệm B1</strong>
-          <p>Giai đoạn này tập trung vào giao diện, kho template, biểu mẫu và lưu dữ liệu cục bộ. AI tìm web, phân tích PPTX/PDF và xuất PPTX sẽ được nối ở các bước sau.</p>
-        </div>
-      </div>
-    </section>
-
-    <section id="templates" class="page">
-      <div class="page-heading">
-        <div>
-          <span class="eyebrow">MAGICAL LIBRARY</span>
-          <h1>Kho mẫu</h1>
-          <p>Đưa các template của bạn vào KitaM để chuẩn bị cho hệ thống AI.</p>
-        </div>
-        <div class="heading-actions">
-          <label class="magic-btn file-btn">
-            ✦ Tải template
-            <input id="templateInput" type="file" accept=".ppt,.pptx,.pdf,.doc,.docx,.png,.jpg,.jpeg" multiple hidden>
-          </label>
-          <button id="folderBtn" class="ghost-btn">▣ Chọn thư mục</button>
-        </div>
-      </div>
-
-      <div class="toolbar panel">
-        <input id="templateSearch" class="pixel-input" placeholder="⌕ Tìm template...">
-        <div class="chips">
-          <button class="chip active" data-filter="all">Tất cả</button>
-          <button class="chip" data-filter="pptx">PPTX</button>
-          <button class="chip" data-filter="pdf">PDF</button>
-          <button class="chip" data-filter="image">Ảnh</button>
-        </div>
-      </div>
-
-      <div id="templateGrid" class="template-grid"></div>
-    </section>
-
-    <section id="create" class="page">
-      <div class="page-heading">
-        <div>
-          <span class="eyebrow">SPELL BUILDER</span>
-          <h1>Tạo bài thuyết trình</h1>
-          <p>Điền thông tin chính. AI sẽ được kết nối vào luồng này ở bước tiếp theo.</p>
-        </div>
-      </div>
-
-      <form id="createForm" class="builder-layout">
-        <div class="panel form-panel">
-          <label>Tên bài thuyết trình<input class="pixel-input" name="title" required placeholder="Ví dụ: AI trong giáo dục"></label>
-          <label>Người trình bày<input class="pixel-input" name="author" placeholder="Tên của bạn"></label>
-          <label>Đơn vị / lớp<input class="pixel-input" name="organization" placeholder="Trường, lớp, công ty..."></label>
-          <div class="two-col">
-            <label>Số slide<input class="pixel-input" name="slides" type="number" min="3" max="50" value="10"></label>
-            <label>Phong cách
-              <select class="pixel-input" name="style">
-                <option>Chuyên nghiệp</option>
-                <option>Học thuật</option>
-                <option>Sáng tạo</option>
-                <option>Tối giản</option>
-              </select>
-            </label>
-          </div>
-          <label>Nội dung chính<textarea class="pixel-input textarea" name="content" required placeholder="Dán nội dung, ý chính hoặc đề cương của bạn..."></textarea></label>
-
-          <div class="switch-list">
-            <label class="switch-row"><input type="checkbox" name="research" checked><span>🌐 Cho phép AI tìm thông tin</span></label>
-            <label class="switch-row"><input type="checkbox" name="images" checked><span>🖼 Tự tìm ảnh minh họa</span></label>
-            <label class="switch-row"><input type="checkbox" name="sources" checked><span>📚 Ghi nguồn tham khảo</span></label>
-          </div>
-
-          <button class="magic-btn wide" type="submit">✦ Niệm phép tạo cấu trúc</button>
-        </div>
-
-        <aside class="panel preview-panel">
-          <span class="eyebrow">PREVIEW</span>
-          <div class="slide-preview">
-            <div class="slide-number">01</div>
-            <div class="preview-orb">✦</div>
-            <h3 id="previewTitle">Tên bài của bạn</h3>
-            <p id="previewAuthor">Người trình bày</p>
-          </div>
-          <p class="muted">B1 mới tạo preview cơ bản. Template mapping + AI sẽ được thêm ở B2/B3.</p>
-        </aside>
-      </form>
-    </section>
-
-    <section id="projects" class="page">
-      <div class="page-heading">
-        <div>
-          <span class="eyebrow">SPELLBOOK</span>
-          <h1>Dự án của tôi</h1>
-          <p>Dự án được lưu trong trình duyệt trên thiết bị này.</p>
-        </div>
-      </div>
-      <div id="projectGrid" class="project-grid"></div>
-    </section>
-
-    <section id="settings" class="page">
-      <div class="page-heading">
-        <div>
-          <span class="eyebrow">WIZARD SETTINGS</span>
-          <h1>Cài đặt</h1>
-          <p>Các thiết lập cơ bản của KitaM.</p>
-        </div>
-      </div>
-
-      <div class="settings-grid">
-        <div class="panel setting-card">
-          <h3>🔄 Tự cập nhật</h3>
-          <p>KitaM dùng Service Worker để kiểm tra phiên bản mới sau khi bạn cập nhật GitHub Pages.</p>
-          <button id="updateBtn" class="ghost-btn">Kiểm tra cập nhật</button>
-        </div>
-        <div class="panel setting-card">
-          <h3>💾 Dữ liệu cục bộ</h3>
-          <p>Template và dự án thử nghiệm được lưu trong trình duyệt. Xóa dữ liệu sẽ không thể hoàn tác.</p>
-          <button id="clearBtn" class="danger-btn">Xóa dữ liệu cục bộ</button>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <div id="toast" class="toast"></div>
-  <script src="script.js"></script>
-</body>
-</html>
+<div class="stars" aria-hidden="true"></div>
+<header class="topbar">
+<button class="brand" data-page="home" aria-label="Về trang chủ"><span class="brand-cat">✦</span><span><strong>KitaM</strong><small>MAGICAL WORKSHOP</small></span></button>
+<nav class="topnav" aria-label="Điều hướng"><button class="nav-btn active" data-page="home">⌂ Trang chủ</button><button class="nav-btn" data-page="templates">▣ Kho mẫu</button><button class="nav-btn" data-page="projects">▤ Dự án</button><button class="nav-btn" data-page="settings">⚙ Cài đặt</button></nav>
+<div class="version">v0.2 • <span id="updateStatus">LOCAL</span></div>
+</header>
+<main>
+<section id="home" class="page active">
+<div class="hero panel"><div class="hero-copy"><div class="eyebrow">✦ PIXEL WITCH PRESENTATION LAB ✦</div><h1>NIỆM PHÉP<br><span>TẠO SLIDE</span></h1><p>Chọn một mẫu, đưa nội dung chính vào biểu mẫu, rồi để KitaM chuẩn bị bài thuyết trình cho bạn.</p><div class="hero-actions"><button class="magic-btn" data-page="create">✦ Tạo bài mới</button><button class="ghost-btn" data-page="templates">▣ Mở kho mẫu</button></div></div><div class="cauldron"><div class="portal">◈</div><div class="cauldron-pot"></div><div class="flame"></div><div class="bubble b1">✦</div><div class="bubble b2">◆</div><div class="bubble b3">✧</div><div class="cauldron-label">KitaM<br><small>AI CORE</small></div></div></div>
+<div class="section-title"><div><span class="eyebrow">QUICK SPELLS</span><h2>Phép thuật nhanh</h2></div></div>
+<div class="quick-grid"><button class="spell-card cyan" data-page="create"><span class="spell-icon">🪄</span><strong>Tạo slide</strong><small>Bắt đầu từ nội dung</small></button><button class="spell-card green" data-page="templates"><span class="spell-icon">📖</span><strong>Kho mẫu</strong><small>Xem và tải template</small></button><button class="spell-card orange" data-page="projects"><span class="spell-icon">📜</span><strong>Dự án</strong><small>Các bài đã lưu cục bộ</small></button></div>
+<div class="notice panel"><span>✧</span><div><strong>KitaM đã lên B2 — Template thật</strong><p>File template giờ được giữ trong IndexedDB trên thiết bị này. PPTX được đọc cấu trúc slide, PDF có preview trang, ảnh có preview trực tiếp; DOCX vẫn được lưu để xử lý ở bước kế tiếp.</p></div></div>
+</section>
+<section id="templates" class="page">
+<div class="page-heading"><div><span class="eyebrow">MAGICAL LIBRARY</span><h1>Kho mẫu</h1><p>Đưa template của bạn vào KitaM. File gốc được giữ cục bộ trên thiết bị.</p></div><div class="heading-actions"><label class="magic-btn file-btn">✦ Tải template<input id="templateInput" type="file" accept=".ppt,.pptx,.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" multiple hidden></label><button id="folderBtn" class="ghost-btn">▣ Chọn thư mục</button></div></div>
+<div class="storage-note panel"><span>💾</span><div><strong>Bộ nhớ template B2</strong><p id="storageStatus">Đang kiểm tra IndexedDB...</p></div></div>
+<div class="toolbar panel"><input id="templateSearch" class="pixel-input" placeholder="⌕ Tìm template..."><div class="chips"><button class="chip active" data-filter="all">Tất cả</button><button class="chip" data-filter="pptx">PPTX</button><button class="chip" data-filter="pdf">PDF</button><button class="chip" data-filter="docx">DOCX</button><button class="chip" data-filter="image">Ảnh</button></div></div>
+<div id="templateGrid" class="template-grid"></div>
+</section>
+<section id="create" class="page">
+<div class="page-heading"><div><span class="eyebrow">SPELL BUILDER</span><h1>Tạo bài thuyết trình</h1><p>Điền thông tin chính. AI planner sẽ được nối ở B3.</p></div></div>
+<form id="createForm" class="builder-layout"><div class="panel form-panel"><label>Tên bài thuyết trình<input class="pixel-input" name="title" required placeholder="Ví dụ: AI trong giáo dục"></label><label>Người trình bày<input class="pixel-input" name="author" placeholder="Tên của bạn"></label><label>Đơn vị / lớp<input class="pixel-input" name="organization" placeholder="Trường, lớp, công ty..."></label><div class="two-col"><label>Số slide<input class="pixel-input" name="slides" type="number" min="3" max="50" value="10"></label><label>Phong cách<select class="pixel-input" name="style"><option>Chuyên nghiệp</option><option>Học thuật</option><option>Sáng tạo</option><option>Tối giản</option></select></label></div><label>Nội dung chính<textarea class="pixel-input textarea" name="content" required placeholder="Dán nội dung, ý chính hoặc đề cương của bạn..."></textarea></label><div class="switch-list"><label class="switch-row"><input type="checkbox" name="research" checked><span>🌐 Cho phép AI tìm thông tin</span></label><label class="switch-row"><input type="checkbox" name="images" checked><span>🖼 Tự tìm ảnh minh họa</span></label><label class="switch-row"><input type="checkbox" name="sources" checked><span>📚 Ghi nguồn tham khảo</span></label></div><button class="magic-btn wide" type="submit">✦ Niệm phép tạo cấu trúc</button></div><aside class="panel preview-panel"><span class="eyebrow">PREVIEW</span><div class="slide-preview"><div class="slide-number">01</div><div class="preview-orb">✦</div><h3 id="previewTitle">Tên bài của bạn</h3><p id="previewAuthor">Người trình bày</p></div><p class="muted">B2 tập trung template. Mapping nội dung + AI sẽ vào B3.</p></aside></form>
+</section>
+<section id="projects" class="page"><div class="page-heading"><div><span class="eyebrow">SPELLBOOK</span><h1>Dự án của tôi</h1><p>Dự án được lưu trong trình duyệt trên thiết bị này.</p></div></div><div id="projectGrid" class="project-grid"></div></section>
+<section id="settings" class="page"><div class="page-heading"><div><span class="eyebrow">WIZARD SETTINGS</span><h1>Cài đặt</h1><p>Các thiết lập cơ bản của KitaM.</p></div></div><div class="settings-grid"><div class="panel setting-card"><h3>🔄 Tự cập nhật</h3><p>KitaM dùng Service Worker để kiểm tra phiên bản mới sau khi deploy GitHub Pages.</p><button id="updateBtn" class="ghost-btn">Kiểm tra cập nhật</button></div><div class="panel setting-card"><h3>💾 Dữ liệu cục bộ</h3><p>B2 lưu file template trong IndexedDB, metadata và dự án trong localStorage.</p><button id="clearBtn" class="danger-btn">Xóa dữ liệu cục bộ</button></div></div></section>
+</main><div id="toast" class="toast"></div><script src="script.js"></script></body></html>
