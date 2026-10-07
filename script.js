@@ -55,8 +55,8 @@ function typeOf(name){const e=extOf(name);if(["ppt","pptx"].includes(e))return"P
 function iconFor(type){return type==="PPTX"?"▣":type==="PDF"?"📕":type==="DOCX"?"📘":"🖼";}
 
 async function renderTemplates(){
- const q=$("#templateSearch").value.toLowerCase(),filter=document.querySelector(".chip.active")?.dataset.filter||"all";
- const list=templates.filter(t=>(!q||t.name.toLowerCase().includes(q)||t.desc.toLowerCase().includes(q))&&(filter==="all"||t.type.toLowerCase()===filter));
+ const q=($("#templateSearch")?.value||"").toLowerCase(),filter=document.querySelector(".chip.active")?.dataset.filter||"all";
+ const list=templates.filter(t=>(!q||String(t.name||"").toLowerCase().includes(q)||String(t.desc||"").toLowerCase().includes(q))&&(filter==="all"||t.type.toLowerCase()===filter));
  const grid=$("#templateGrid");
  grid.innerHTML=list.length?list.map(t=>`<article class="template-card" data-card="${t.id}"><div class="template-thumb" id="thumb-${t.id}">${t.icon||"📄"}<span class="thumb-loading">LOADING</span></div><div class="template-body"><strong>${escapeHtml(t.name)}</strong><small>${escapeHtml(t.type)} • ${escapeHtml(t.desc)}</small><div class="card-actions"><button class="ghost-btn" data-preview-template="${t.id}">Xem mẫu</button><button class="magic-btn mini" data-use-template="${t.id}">Dùng mẫu</button>${!t.builtin?'<button class="danger-btn mini" data-delete-template="'+t.id+'">Xóa</button>':""}</div></div></article>`).join(""):`<div class="empty">Không tìm thấy template phù hợp.</div>`;
  for(const t of list)await makeThumbnail(t);
@@ -215,7 +215,18 @@ function bootKitaM(){
   renderTemplates();renderProjects();updateStorageStatus();
   fillTemplateSelect();
 }
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bootKitaM,{once:true});else bootKitaM();
+function safeBootKitaM(){
+  try{
+    bootKitaM();
+    const st=$("#updateStatus"); if(st) st.textContent="READY";
+  }catch(e){
+    console.error("KitaM boot failed",e);
+    const box=$("#runtimeError"),text=$("#runtimeErrorText");
+    if(box&&text){box.hidden=false;text.textContent="Boot lỗi: "+(e?.message||e);}
+    const st=$("#updateStatus"); if(st) st.textContent="BOOT ERROR";
+  }
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",safeBootKitaM,{once:true});else safeBootKitaM();
 if("serviceWorker"in navigator)window.addEventListener("load",async()=>{
   try{
     const reg=await navigator.serviceWorker.register("sw.js");
