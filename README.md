@@ -2,17 +2,20 @@
 
 Pixel-fantasy AI Presentation Workshop.
 
-## B1 hiện tại
-- Giao diện pixel fantasy màu đậm theo reference.
-- Trang chủ / Kho mẫu / Tạo bài / Dự án / Cài đặt.
-- Upload template cục bộ: PPT/PPTX/PDF/DOC/DOCX/ảnh.
-- Chọn thư mục bằng File System Access API nếu trình duyệt hỗ trợ.
-- Lưu template + project bằng localStorage.
-- PWA shell + Service Worker.
-- Tự kiểm tra/cập nhật cache khi code được deploy lại trên GitHub Pages.
+## B2 hiện tại — Template thật
+- Upload PPT/PPTX/PDF/DOC/DOCX/ảnh.
+- File gốc của template được lưu trong **IndexedDB** trên thiết bị, không chỉ lưu metadata.
+- PDF: tạo preview trang bằng PDF.js và có màn hình xem nhiều trang.
+- PPTX: đọc file OOXML trực tiếp trong trình duyệt, đếm slide và trích xuất text để tạo preview cấu trúc.
+- DOCX: file được giữ an toàn để xử lý ở bước sau.
+- Ảnh: preview trực tiếp.
+- Nút **Chọn thư mục**: nếu trình duyệt hỗ trợ File System Access API, KitaM có thể đọc các file template phù hợp trong thư mục người dùng đã cấp quyền.
+- Có thể chọn một template rồi chuyển sang màn hình Tạo bài; template đã chọn được ghi vào project.
+- Có thể xóa từng template thật.
+- Xóa dữ liệu cục bộ sẽ xóa cả file trong IndexedDB.
+- Service Worker đã tăng version cache để nhận code B2 mới.
 
 ## Roadmap
-B2: phân tích template PDF/PPTX.
 B3: AI content planner + slide mapping.
 B4: web search + nguồn tham khảo.
 B5: AI image search/selection.
@@ -20,6 +23,12 @@ B6: slide editor.
 B7: export PPTX/PDF.
 B8: backend/API + cloud sync.
 
-## Lưu ý
-GitHub Pages không nên chứa API key AI/search. Khi nối AI thật, dùng backend/serverless proxy.
-Trình duyệt không được tự ý truy cập thư mục máy tính; người dùng phải chọn và cấp quyền.
+## Lưu ý kỹ thuật
+- GitHub Pages chỉ phục vụ frontend. API key AI/search không được nhúng trực tiếp vào client; khi nối AI thật cần backend/serverless proxy.
+- Browser không được tự ý đọc ổ đĩa. Người dùng phải chọn file hoặc cấp quyền cho thư mục.
+- IndexedDB là bộ nhớ cục bộ của trình duyệt. Template chưa được đồng bộ lên cloud.
+- PPTX preview hiện là **structural preview** (text + số slide), chưa phải renderer 100% giống PowerPoint. Việc render đầy đủ layout, font, hình, animation sẽ được xử lý ở các bước editor/export sau.
+- PDF preview dùng thư viện PDF.js từ CDN nên lần đầu cần có Internet.
+
+## B1 → B2
+B1 chỉ lưu metadata template bằng localStorage. B2 chuyển file thật sang IndexedDB để kiến trúc phía sau có thể đọc file và phân tích nội dung.
