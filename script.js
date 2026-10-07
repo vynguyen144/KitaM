@@ -153,7 +153,7 @@ function bootKitaM(){
     const f=new FormData(e.currentTarget),plan=makePlan(f);
     showPlan(plan);
     const p={id:(crypto.randomUUID?crypto.randomUUID():"kitam_"+Date.now()),title:f.get("title"),author:f.get("author"),organization:f.get("organization"),slides:Number(f.get("slides")),style:f.get("style"),content:f.get("content"),research:f.get("research")==="on",images:f.get("images")==="on",sources:f.get("sources")==="on",templateId:f.get("template")||selectedTemplate,plan,sources:researchSources.filter(x=>researchSelected.has(x.id)),created:Date.now()};
-    projects.unshift(p);saveMeta();renderProjects();toast("✨ KitaM đã tạo dàn ý slide!");
+    projects.unshift(p);saveMeta();renderProjects();editorProjectId=p.id;editorSlideIndex=0;const next=$("#planNextBtn");if(next)next.remove();const preview=$("#planPreview");if(preview){preview.insertAdjacentHTML("beforeend",'<button id="planNextBtn" class="magic-btn wide plan-next">✦ Bắt đầu chỉnh slide trong Editor →</button>');const btn=$("#planNextBtn");if(btn)btn.onclick=()=>showPage("editor");}toast("✨ Đã tạo dàn ý! Xem lại rồi bấm Bắt đầu chỉnh slide.");
   });
 
   bind("#clearBtn","click",async()=>{
