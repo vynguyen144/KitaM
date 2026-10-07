@@ -110,10 +110,10 @@ function bootKitaM(){
     let added=0;
     for(const f of files){
       const type=typeOf(f.name);
-      if(type==="IMAGE"&&!/^image\\//.test(f.type)){toast("File ảnh không hợp lệ: "+f.name);continue;}
+      if(type==="IMAGE"&&!/^image\//.test(f.type)){toast("File ảnh không hợp lệ: "+f.name);continue;}
       const id=(crypto.randomUUID?crypto.randomUUID():"kitam_"+Date.now()+"_"+Math.random().toString(36).slice(2));
       await putFile(id,f);
-      templates.push({id,name:f.name.replace(/\\.[^.]+$/,""),type,icon:iconFor(type),desc:`Template thật • ${Math.round(f.size/1024)} KB`,fileName:f.name,size:f.size,builtin:false});
+      templates.push({id,name:f.name.replace(/\.[^.]+$/,""),type,icon:iconFor(type),desc:`Template thật • ${Math.round(f.size/1024)} KB`,fileName:f.name,size:f.size,builtin:false});
       added++;
     }
     saveMeta(); await renderTemplates(); toast(`✦ Đã lưu ${added} template thật vào bộ nhớ máy.`); e.target.value="";
@@ -129,7 +129,7 @@ function bootKitaM(){
         const f=await handle.getFile();
         const id=(crypto.randomUUID?crypto.randomUUID():"kitam_"+Date.now()+"_"+Math.random().toString(36).slice(2));
         await putFile(id,f);
-        templates.push({id,name:name.replace(/\\.[^.]+$/,""),type,icon:iconFor(type),desc:`Từ thư mục • ${Math.round(f.size/1024)} KB`,fileName:name,size:f.size,builtin:false}); added++;
+        templates.push({id,name:name.replace(/\.[^.]+$/,""),type,icon:iconFor(type),desc:`Từ thư mục • ${Math.round(f.size/1024)} KB`,fileName:name,size:f.size,builtin:false}); added++;
       }
       saveMeta(); await renderTemplates(); toast(`✦ Đã đọc ${added} file từ thư mục ${dir.name}.`);
     }catch(e){if(e.name!=="AbortError")toast("Không thể đọc thư mục.");}
