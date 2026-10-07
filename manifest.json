@@ -1,0 +1,10 @@
+{
+  "name": "KitaM — Magical Presentation Workshop",
+  "short_name": "KitaM",
+  "description": "Pixel fantasy AI presentation workspace",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#07131c",
+  "theme_color": "#07131c",
+  "icons": []
+}
