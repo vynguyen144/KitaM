@@ -15,6 +15,13 @@ Pixel-fantasy AI Presentation Workshop.
 - Xóa dữ liệu cục bộ sẽ xóa cả file trong IndexedDB.
 - Service Worker đã tăng version cache để nhận code B2 mới.
 
+## B3 hiện tại — Content Planner
+- Chọn template ngay trong màn hình tạo bài.
+- Tự chia nội dung thành dàn ý slide dựa trên số slide yêu cầu.
+- Tự gợi ý layout: COVER, TITLE + CONTENT, CARDS, IMAGE + TEXT, TIMELINE, SUMMARY.
+- Dàn ý được lưu cùng project để B6 có thể dùng làm dữ liệu editor.
+- Đây là planner cục bộ theo luật; chưa gọi AI/API thật. AI tìm web và tổng hợp nguồn sẽ ở B4, backend/API ở B8.
+
 ## Roadmap
 B3: AI content planner + slide mapping.
 B4: web search + nguồn tham khảo.
