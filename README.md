@@ -22,6 +22,17 @@ Pixel-fantasy AI Presentation Workshop.
 - Dàn ý được lưu cùng project để B6 có thể dùng làm dữ liệu editor.
 - Đây là planner cục bộ theo luật; chưa gọi AI/API thật. AI tìm web và tổng hợp nguồn sẽ ở B4, backend/API ở B8.
 
+## B4 hiện tại — Research + nguồn tham khảo
+- Có workspace **Nghiên cứu** để nhập chủ đề, chọn số lượng và loại nguồn.
+- Khi chưa cấu hình backend, KitaM dùng **Demo Research** với dữ liệu giả lập và gắn nhãn DEMO; không coi đó là kết quả web thật.
+- Khi cấu hình Research API, frontend gọi `POST {API_BASE}/research` với `{ query, limit, types }`.
+- Chuẩn nguồn gồm: `id`, `title`, `url`, `domain`, `snippet`, `sourceType`, `retrievedAt`.
+- Có citation dạng `[1]`, `[2]`... và checkbox để chọn nguồn.
+- Nguồn được lưu cục bộ và có thể gắn vào project.
+- API backend phải trả JSON `{ "sources": [...] }`.
+- Backend phải bật CORS cho origin của KitaM vì frontend GitHub Pages gọi API khác domain; browser sẽ chặn response cross-origin nếu server không cho phép.
+- Không đặt API key tìm kiếm/AI trong frontend. Backend mới là nơi giữ secret.
+
 ## Roadmap
 B3: AI content planner + slide mapping.
 B4: web search + nguồn tham khảo.
@@ -29,6 +40,10 @@ B5: AI image search/selection.
 B6: slide editor.
 B7: export PPTX/PDF.
 B8: backend/API + cloud sync.
+
+### Research API contract
+Request: `{ "query": "AI trong giáo dục", "limit": 8, "types": ["web","news","social"] }`
+Response: `{ "sources": [{ "id": "src_1", "title": "...", "url": "https://...", "domain": "example.com", "snippet": "...", "sourceType": "web", "retrievedAt": "2026-10-07T00:00:00Z" }] }`
 
 ## Lưu ý kỹ thuật
 - GitHub Pages chỉ phục vụ frontend. API key AI/search không được nhúng trực tiếp vào client; khi nối AI thật cần backend/serverless proxy.
