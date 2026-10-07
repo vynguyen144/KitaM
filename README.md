@@ -41,6 +41,15 @@ Pixel-fantasy AI Presentation Workshop.
 - Ảnh đã chọn có thể gắn vào project gần nhất và lưu cục bộ.
 - Backend nên trả ảnh từ provider có quyền sử dụng phù hợp và giữ thông tin attribution/source.
 
+## B6 hiện tại — Slide Editor
+- Có workspace **Editor** để chọn project và chỉnh từng slide.
+- Điều hướng slide trước/sau.
+- Chỉnh tiêu đề, nội dung, layout và ảnh.
+- Hiển thị preview slide 16:9 theo phong cách pixel fantasy.
+- Hiển thị các nguồn đã gắn vào project.
+- Thay đổi được lưu vào `project.plan` và localStorage.
+- Đây là editor browser-side đầu tiên; chưa phải renderer PowerPoint/Canva 100%, và chưa xuất PPTX/PDF.
+
 ## Roadmap
 B3: AI content planner + slide mapping.
 B4: web search + nguồn tham khảo.
