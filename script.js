@@ -1,141 +1,94 @@
-const $ = (s) => document.querySelector(s);
-const $$ = (s) => [...document.querySelectorAll(s)];
-
-const defaultTemplates = [
-  {id:"starter-cyan", name:"Astral Cyan", type:"PPTX", icon:"✦", desc:"Mẫu thử nghiệm phong cách ma thuật xanh."},
-  {id:"starter-green", name:"Witch Garden", type:"PDF", icon:"☘", desc:"Mẫu thử nghiệm xanh lá neon."},
-  {id:"starter-fire", name:"Arcane Fire", type:"IMAGE", icon:"🔥", desc:"Mẫu hình ảnh lấy cảm hứng từ lò luyện phép."}
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const DB_NAME="kitam_b2",DB_VERSION=1,STORE="files";
+const defaultTemplates=[
+{id:"starter-cyan",name:"Astral Cyan",type:"PPTX",icon:"✦",desc:"Mẫu thử nghiệm phong cách ma thuật xanh.",builtin:true},
+{id:"starter-green",name:"Witch Garden",type:"PDF",icon:"☘",desc:"Mẫu thử nghiệm xanh lá neon.",builtin:true},
+{id:"starter-fire",name:"Arcane Fire",type:"IMAGE",icon:"🔥",desc:"Mẫu hình ảnh lấy cảm hứng từ lò luyện phép.",builtin:true}
 ];
+let templates=JSON.parse(localStorage.getItem("kitam_templates")||"null")||defaultTemplates;
+let projects=JSON.parse(localStorage.getItem("kitam_projects")||"[]");
+let selectedTemplate=localStorage.getItem("kitam_selected_template")||"";
 
-let templates = JSON.parse(localStorage.getItem("kitam_templates") || "null") || defaultTemplates;
-let projects = JSON.parse(localStorage.getItem("kitam_projects") || "[]");
-
-function save() {
-  localStorage.setItem("kitam_templates", JSON.stringify(templates));
-  localStorage.setItem("kitam_projects", JSON.stringify(projects));
-}
-
-function toast(msg){
-  const el=$("#toast"); el.textContent=msg; el.classList.add("show");
-  clearTimeout(window.__toast); window.__toast=setTimeout(()=>el.classList.remove("show"),2600);
-}
-
-function showPage(id){
-  $$(".page").forEach(p=>p.classList.toggle("active",p.id===id));
-  $$(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===id));
-  window.scrollTo({top:0,behavior:"smooth"});
-  if(id==="templates") renderTemplates();
-  if(id==="projects") renderProjects();
-}
+function saveMeta(){localStorage.setItem("kitam_templates",JSON.stringify(templates));localStorage.setItem("kitam_projects",JSON.stringify(projects));}
+function toast(msg){const el=$("#toast");el.textContent=msg;el.classList.add("show");clearTimeout(window.__toast);window.__toast=setTimeout(()=>el.classList.remove("show"),2800)}
+function showPage(id){$$(".page").forEach(p=>p.classList.toggle("active",p.id===id));$$(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===id));window.scrollTo({top:0,behavior:"smooth"});if(id==="templates")renderTemplates();if(id==="projects")renderProjects();}
 $$("[data-page]").forEach(el=>el.addEventListener("click",()=>showPage(el.dataset.page)));
 
-function renderTemplates(){
-  const q=$("#templateSearch").value.toLowerCase();
-  const filter=document.querySelector(".chip.active")?.dataset.filter || "all";
-  const list=templates.filter(t=>
-    (!q || t.name.toLowerCase().includes(q) || t.desc.toLowerCase().includes(q)) &&
-    (filter==="all" || t.type.toLowerCase()===filter)
-  );
-  const grid=$("#templateGrid");
-  grid.innerHTML=list.length ? list.map(t=>`
-    <article class="template-card">
-      <div class="template-thumb">${t.icon || "📄"}</div>
-      <div class="template-body">
-        <strong>${escapeHtml(t.name)}</strong>
-        <small>${escapeHtml(t.type)} • ${escapeHtml(t.desc)}</small>
-        <button class="ghost-btn" data-use-template="${t.id}">Chọn mẫu</button>
-      </div>
-    </article>`).join("") : `<div class="empty">Không tìm thấy template phù hợp.</div>`;
-  $$("[data-use-template]").forEach(b=>b.addEventListener("click",()=>{
-    toast("✦ Đã chọn template. KitaM sẽ dùng nó ở bước tạo slide.");
-    showPage("create");
-  }));
+function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(STORE))db.createObjectStore(STORE,{keyPath:"id"});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);})}
+async function putFile(id,file){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,"readwrite");tx.objectStore(STORE).put({id,blob:file,name:file.name,size:file.size,type:file.type||"application/octet-stream",updated:Date.now()});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);})}
+async function getFile(id){const db=await openDB();return new Promise((resolve,reject)=>{const req=db.transaction(STORE).objectStore(STORE).get(id);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);})}
+async function deleteFile(id){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,"readwrite");tx.objectStore(STORE).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);})}
+async function countFiles(){const db=await openDB();return new Promise((resolve,reject)=>{const req=db.transaction(STORE).objectStore(STORE).count();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);})}
+async function clearFiles(){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,"readwrite");tx.objectStore(STORE).clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);})}
+
+function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
+function extOf(name){return (name.split(".").pop()||"").toLowerCase();}
+function typeOf(name){const e=extOf(name);if(["ppt","pptx"].includes(e))return"PPTX";if(e==="pdf")return"PDF";if(["doc","docx"].includes(e))return"DOCX";return"IMAGE";}
+function iconFor(type){return type==="PPTX"?"▣":type==="PDF"?"📕":type==="DOCX"?"📘":"🖼";}
+
+async function renderTemplates(){
+ const q=$("#templateSearch").value.toLowerCase(),filter=document.querySelector(".chip.active")?.dataset.filter||"all";
+ const list=templates.filter(t=>(!q||t.name.toLowerCase().includes(q)||t.desc.toLowerCase().includes(q))&&(filter==="all"||t.type.toLowerCase()===filter));
+ const grid=$("#templateGrid");
+ grid.innerHTML=list.length?list.map(t=>`<article class="template-card" data-card="${t.id}"><div class="template-thumb" id="thumb-${t.id}">${t.icon||"📄"}<span class="thumb-loading">LOADING</span></div><div class="template-body"><strong>${escapeHtml(t.name)}</strong><small>${escapeHtml(t.type)} • ${escapeHtml(t.desc)}</small><div class="card-actions"><button class="ghost-btn" data-preview-template="${t.id}">Xem mẫu</button><button class="magic-btn mini" data-use-template="${t.id}">Dùng mẫu</button>${!t.builtin?'<button class="danger-btn mini" data-delete-template="'+t.id+'">Xóa</button>':""}</div></div></article>`).join(""):`<div class="empty">Không tìm thấy template phù hợp.</div>`;
+ for(const t of list)await makeThumbnail(t);
+ $$("[data-use-template]").forEach(b=>b.onclick=()=>{selectedTemplate=b.dataset.useTemplate;localStorage.setItem("kitam_selected_template",selectedTemplate);toast("✦ Đã chọn template cho bài mới.");showPage("create");});
+ $$("[data-preview-template]").forEach(b=>b.onclick=()=>previewTemplate(b.dataset.previewTemplate));
+ $$("[data-delete-template]").forEach(b=>b.onclick=async()=>{const id=b.dataset.deleteTemplate;const t=templates.find(x=>x.id===id);if(confirm(`Xóa template "${t?.name}" khỏi KitaM?`)){templates=templates.filter(x=>x.id!==id);await deleteFile(id);saveMeta();renderTemplates();updateStorageStatus();toast("Template đã được xóa.");}});
+ updateStorageStatus();
 }
-function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
+async function makeThumbnail(t){
+ const el=$("#thumb-"+CSS.escape(t.id));if(!el)return;
+ if(t.builtin){el.classList.add("builtin-thumb");return}
+ const rec=await getFile(t.id);if(!rec)return;
+ try{
+  if(t.type==="IMAGE"){const url=URL.createObjectURL(rec.blob);el.innerHTML=`<img src="${url}" alt="">`;return}
+  if(t.type==="PDF"){el.innerHTML="";const canvas=document.createElement("canvas");canvas.className="pdf-thumb";el.append(canvas);await renderPdfPage(rec.blob,1,canvas);return}
+  if(t.type==="PPTX"){const info=await parsePptx(rec.blob);el.innerHTML=`<div class="ppt-mini"><b>SLIDE 01</b><span>${escapeHtml(info.slides[0]?.title||info.slides[0]?.texts?.[0]||"PPTX TEMPLATE")}</span><small>${info.slides.length} slide • ${escapeHtml(info.slides[0]?.texts?.slice(1,4).join(" · ")||"")}</small></div>`;return}
+  el.innerHTML=`<div class="doc-mini">📘<b>DOCX</b><small>File đã lưu</small></div>`;
+ }catch(e){el.innerHTML=`<div class="doc-mini">⚠️<b>Không đọc được</b></div>`;}
+}
+async function renderPdfPage(blob,pageNo,canvas){
+ if(!window.pdfjsLib){await new Promise(r=>setTimeout(r,250));}
+ if(!window.pdfjsLib)throw Error("PDF.js chưa sẵn sàng");
+ const pdf=await window.pdfjsLib.getDocument({data:await blob.arrayBuffer()}).promise,page=await pdf.getPage(pageNo);
+ const base=page.getViewport({scale:1}),scale=Math.min(1.7,480/base.width),vp=page.getViewport({scale});
+ canvas.width=vp.width;canvas.height=vp.height;await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
+}
+async function parsePptx(blob){
+ const zip=await JSZip.loadAsync(blob),names=Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a,b)=>Number(a.match(/\d+/)[0])-Number(b.match(/\d+/)[0]));
+ const slides=[];for(const name of names){const xml=await zip.file(name).async("text"),doc=new DOMParser().parseFromString(xml,"application/xml");const texts=[...doc.getElementsByTagName("a:t")].map(x=>x.textContent.trim()).filter(Boolean);slides.push({name,texts,title:texts[0]||""});}return{slides};
+}
+async function previewTemplate(id){
+ const t=templates.find(x=>x.id===id);if(!t)return;
+ if(t.builtin){toast("✦ Đây là mẫu demo giao diện của B1.");return}
+ const rec=await getFile(id);if(!rec)return;
+ if(t.type==="PDF"){const pdf=await window.pdfjsLib.getDocument({data:await rec.blob.arrayBuffer()}).promise;const pages=Math.min(pdf.numPages,8);let html="";for(let i=1;i<=pages;i++)html+=`<div class="preview-page"><canvas id="modal-pdf-${i}"></canvas><span>Trang ${i}</span></div>`;showModal(`📕 ${t.name} — ${pdf.numPages} trang`,html);for(let i=1;i<=pages;i++)renderPdfPage(rec.blob,i,$("#modal-pdf-"+i));return}
+ if(t.type==="PPTX"){const info=await parsePptx(rec.blob);const html=info.slides.map((s,i)=>`<div class="slide-structure"><b>SLIDE ${String(i+1).padStart(2,"0")}</b><strong>${escapeHtml(s.title||"Không có tiêu đề")}</strong><p>${escapeHtml(s.texts.slice(1,12).join(" • ")||"Không tìm thấy text")}</p></div>`).join("");showModal(`▣ ${t.name} — ${info.slides.length} slide`,html);return}
+ if(t.type==="IMAGE"){showModal(`🖼 ${t.name}`,`<img class="full-image" src="${URL.createObjectURL(rec.blob)}" alt="">`);return}
+ showModal(`📘 ${t.name}`,`<div class="slide-structure">DOCX đã được lưu an toàn. Phân tích nội dung DOCX sẽ được hoàn thiện ở bước B3.</div>`);
+}
+function showModal(title,body){document.querySelector(".modal")?.remove();const m=document.createElement("div");m.className="modal";m.innerHTML=`<div class="modal-box"><div class="modal-head"><strong>${escapeHtml(title)}</strong><button class="ghost-btn" data-close-modal>Đóng</button></div><div class="modal-body">${body}</div></div>`;document.body.append(m);m.onclick=e=>{if(e.target===m||e.target.matches("[data-close-modal]"))m.remove();};}
+async function updateStorageStatus(){try{const n=await countFiles();$("#storageStatus").textContent=`${n} file thật đang được giữ trong IndexedDB của thiết bị này. File không được upload lên GitHub.`;}catch(e){$("#storageStatus").textContent="Thiết bị không hỗ trợ IndexedDB.";}}
+
 $("#templateSearch").addEventListener("input",renderTemplates);
-$$(".chip").forEach(c=>c.addEventListener("click",()=>{
-  $$(".chip").forEach(x=>x.classList.remove("active")); c.classList.add("active"); renderTemplates();
-}));
-
-$("#templateInput").addEventListener("change", async e=>{
-  const files=[...e.target.files];
-  for(const f of files){
-    const ext=f.name.split(".").pop().toUpperCase();
-    let type=["PPT","PPTX"].includes(ext)?"PPTX":["PDF"].includes(ext)?"PDF":["DOC","DOCX"].includes(ext)?"DOCX":"IMAGE";
-    templates.push({
-      id:crypto.randomUUID(), name:f.name.replace(/\.[^.]+$/,""), type,
-      icon:type==="PPTX"?"▣":type==="PDF"?"📕":type==="DOCX"?"📘":"🖼",
-      desc:`Template cục bộ • ${Math.round(f.size/1024)} KB`
-    });
-  }
-  save(); renderTemplates(); toast(`✦ Đã thêm ${files.length} template vào kho cục bộ.`);
-  e.target.value="";
+$$(".chip").forEach(c=>c.addEventListener("click",()=>{$$(".chip").forEach(x=>x.classList.remove("active"));c.classList.add("active");renderTemplates();}));
+$("#templateInput").addEventListener("change",async e=>{
+ const files=[...e.target.files];if(!files.length)return;
+ let added=0;
+ for(const f of files){const type=typeOf(f.name);if(type==="IMAGE"&&!/^image\//.test(f.type)){toast("File ảnh không hợp lệ: "+f.name);continue}
+  const id=crypto.randomUUID();await putFile(id,f);templates.push({id,name:f.name.replace(/\.[^.]+$/,""),type,icon:iconFor(type),desc:`Template thật • ${Math.round(f.size/1024)} KB`,fileName:f.name,size:f.size,builtin:false});added++;
+ }
+ saveMeta();await renderTemplates();toast(`✦ Đã lưu ${added} template thật vào bộ nhớ máy.`);e.target.value="";
 });
-
 $("#folderBtn").addEventListener("click",async()=>{
-  if(!window.showDirectoryPicker){
-    toast("Trình duyệt này chưa hỗ trợ chọn thư mục trực tiếp. Hãy dùng nút Tải template.");
-    return;
-  }
-  try{
-    const dir=await window.showDirectoryPicker({mode:"read"});
-    toast(`✦ Đã cấp quyền đọc thư mục: ${dir.name}`);
-  }catch(e){ toast("Đã hủy chọn thư mục."); }
+ if(!window.showDirectoryPicker){toast("Trình duyệt này chưa hỗ trợ chọn thư mục trực tiếp.");return}
+ try{const dir=await window.showDirectoryPicker({mode:"read"});let added=0;for await(const [name,handle] of dir.entries()){if(handle.kind!=="file")continue;const type=typeOf(name);if(!["PPTX","PDF","DOCX","IMAGE"].includes(type))continue;const f=await handle.getFile();const id=crypto.randomUUID();await putFile(id,f);templates.push({id,name:name.replace(/\.[^.]+$/,""),type,icon:iconFor(type),desc:`Từ thư mục • ${Math.round(f.size/1024)} KB`,fileName:name,size:f.size,builtin:false});added++}saveMeta();await renderTemplates();toast(`✦ Đã đọc ${added} file từ thư mục ${dir.name}.`);}catch(e){if(e.name!=="AbortError")toast("Không thể đọc thư mục.");}
 });
-
-function renderProjects(){
-  const grid=$("#projectGrid");
-  grid.innerHTML=projects.length ? projects.map(p=>`
-    <article class="project-card">
-      <div class="eyebrow">${new Date(p.created).toLocaleDateString("vi-VN")}</div>
-      <h3>${escapeHtml(p.title)}</h3>
-      <p>${escapeHtml(p.author || "Chưa có người trình bày")} • ${p.slides} slide • ${escapeHtml(p.style)}</p>
-      <button class="ghost-btn" data-open-project="${p.id}">Mở dự án</button>
-    </article>`).join("") : `<div class="empty">📜 Chưa có dự án nào. Hãy niệm phép tạo bài đầu tiên!</div>`;
-  $$("[data-open-project]").forEach(b=>b.addEventListener("click",()=>toast("✦ Editor đầy đủ sẽ được mở ở phiên bản B3.")));
-}
-
-$("#createForm").addEventListener("input",e=>{
-  const f=new FormData($("#createForm"));
-  $("#previewTitle").textContent=f.get("title") || "Tên bài của bạn";
-  $("#previewAuthor").textContent=f.get("author") || "Người trình bày";
-});
-$("#createForm").addEventListener("submit",e=>{
-  e.preventDefault();
-  const f=new FormData(e.currentTarget);
-  const p={
-    id:crypto.randomUUID(), title:f.get("title"), author:f.get("author"),
-    organization:f.get("organization"), slides:Number(f.get("slides")), style:f.get("style"),
-    content:f.get("content"), research:f.get("research")==="on",
-    images:f.get("images")==="on", sources:f.get("sources")==="on", created:Date.now()
-  };
-  projects.unshift(p); save(); renderProjects(); toast("✨ Cấu trúc dự án đã được lưu cục bộ!");
-  showPage("projects");
-});
-
-$("#clearBtn").addEventListener("click",()=>{
-  if(confirm("Xóa toàn bộ template và dự án cục bộ của KitaM?")){
-    localStorage.removeItem("kitam_templates"); localStorage.removeItem("kitam_projects");
-    templates=[...defaultTemplates]; projects=[]; save(); renderTemplates(); renderProjects();
-    toast("Đã xóa dữ liệu cục bộ.");
-  }
-});
-$("#updateBtn").addEventListener("click",async()=>{
-  if("serviceWorker" in navigator){
-    const regs=await navigator.serviceWorker.getRegistrations();
-    await Promise.all(regs.map(r=>r.update()));
-    toast("🔄 Đã kiểm tra phiên bản mới.");
-  } else toast("Trình duyệt không hỗ trợ Service Worker.");
-});
-
-if("serviceWorker" in navigator){
-  window.addEventListener("load",async()=>{
-    try{
-      const reg=await navigator.serviceWorker.register("sw.js");
-      $("#updateStatus").textContent="AUTO UPDATE";
-      reg.addEventListener("updatefound",()=>toast("✨ KitaM đang nhận bản cập nhật mới..."));
-    }catch(e){$("#updateStatus").textContent="NO SW";}
-  });
-}
-
-renderTemplates(); renderProjects();
+function renderProjects(){const grid=$("#projectGrid");grid.innerHTML=projects.length?projects.map(p=>`<article class="project-card"><div class="eyebrow">${new Date(p.created).toLocaleDateString("vi-VN")}</div><h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.author||"Chưa có người trình bày")} • ${p.slides} slide • ${escapeHtml(p.style)}</p><button class="ghost-btn" data-open-project="${p.id}">Mở dự án</button></article>`).join(""):`<div class="empty">📜 Chưa có dự án nào. Hãy niệm phép tạo bài đầu tiên!</div>`;}
+$("#createForm").addEventListener("input",e=>{const f=new FormData(e.currentTarget);$("#previewTitle").textContent=f.get("title")||"Tên bài của bạn";$("#previewAuthor").textContent=f.get("author")||"Người trình bày";});
+$("#createForm").addEventListener("submit",e=>{e.preventDefault();const f=new FormData(e.currentTarget);const p={id:crypto.randomUUID(),title:f.get("title"),author:f.get("author"),organization:f.get("organization"),slides:Number(f.get("slides")),style:f.get("style"),content:f.get("content"),research:f.get("research")==="on",images:f.get("images")==="on",sources:f.get("sources")==="on",templateId:selectedTemplate,created:Date.now()};projects.unshift(p);saveMeta();renderProjects();toast("✨ Cấu trúc dự án đã được lưu cục bộ!");showPage("projects");});
+$("#clearBtn").addEventListener("click",async()=>{if(confirm("Xóa toàn bộ template và dự án cục bộ của KitaM?")){localStorage.removeItem("kitam_templates");localStorage.removeItem("kitam_projects");localStorage.removeItem("kitam_selected_template");templates=[...defaultTemplates];projects=[];await clearFiles();saveMeta();renderTemplates();renderProjects();updateStorageStatus();toast("Đã xóa dữ liệu cục bộ.");}});
+$("#updateBtn").addEventListener("click",async()=>{if("serviceWorker"in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.update()));toast("🔄 Đã kiểm tra phiên bản mới.");}else toast("Trình duyệt không hỗ trợ Service Worker.");});
+if("serviceWorker"in navigator)window.addEventListener("load",async()=>{try{const reg=await navigator.serviceWorker.register("sw.js");$("#updateStatus").textContent="AUTO UPDATE";reg.addEventListener("updatefound",()=>toast("✨ KitaM đang nhận bản cập nhật mới..."));}catch(e){$("#updateStatus").textContent="NO SW";}});
+renderTemplates();renderProjects();updateStorageStatus();
