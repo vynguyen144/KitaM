@@ -33,6 +33,14 @@ Pixel-fantasy AI Presentation Workshop.
 - Backend phải bật CORS cho origin của KitaM vì frontend GitHub Pages gọi API khác domain; browser sẽ chặn response cross-origin nếu server không cho phép.
 - Không đặt API key tìm kiếm/AI trong frontend. Backend mới là nơi giữ secret.
 
+## B5 hiện tại — Image Search + chọn ảnh
+- Có workspace **Ảnh** để tìm ảnh theo từ khóa, số lượng và tỉ lệ.
+- Khi chưa cấu hình backend, KitaM dùng **Demo Image Search** và đánh dấu DEMO.
+- Khi có backend, frontend gọi `POST {API_BASE}/images` với `{ query, limit, ratio }`.
+- Kết quả có `url`, `thumbnailUrl`, `alt`, `source`, `sourceUrl` và có thể chọn nhiều ảnh.
+- Ảnh đã chọn có thể gắn vào project gần nhất và lưu cục bộ.
+- Backend nên trả ảnh từ provider có quyền sử dụng phù hợp và giữ thông tin attribution/source.
+
 ## Roadmap
 B3: AI content planner + slide mapping.
 B4: web search + nguồn tham khảo.
@@ -40,6 +48,10 @@ B5: AI image search/selection.
 B6: slide editor.
 B7: export PPTX/PDF.
 B8: backend/API + cloud sync.
+
+### Image API contract
+Request: `{ "query": "AI classroom", "limit": 6, "ratio": "landscape" }`
+Response: `{ "images": [{ "id": "img_1", "title": "...", "url": "https://...", "thumbnailUrl": "https://...", "alt": "...", "source": "...", "sourceUrl": "https://..." }] }`
 
 ### Research API contract
 Request: `{ "query": "AI trong giáo dục", "limit": 8, "types": ["web","news","social"] }`
