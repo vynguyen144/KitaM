@@ -34,7 +34,91 @@ function getEditorProject(){return projects.find(p=>p.id===editorProjectId)||pro
 function ensurePlan(p){if(!p)return[];if(!Array.isArray(p.plan)||!p.plan.length){p.plan=makePlan({get:k=>k==="title"?p.title:k==="slides"?p.slides:k==="content"?p.content:""});}return p.plan;}
 function fillEditorProjects(){const sel=$("#editorProjectSelect");if(!sel)return;sel.innerHTML=projects.length?projects.map(p=>'<option value="'+escapeHtml(p.id)+'">'+escapeHtml(p.title||"Untitled")+'</option>').join(""):'<option value="">Chưa có project</option>';if(editorProjectId&&projects.some(p=>p.id===editorProjectId))sel.value=editorProjectId;else if(projects[0]){editorProjectId=projects[0].id;sel.value=editorProjectId;}}
 function editorImages(p){const saved=Array.isArray(p?.images)?p.images:[];const imgs=[...saved,...imageResults];const seen=new Set();return imgs.filter(x=>x&&!seen.has(x.id)&&seen.add(x.id));}
-async function renderEditor(){const p=getEditorProject(),stage=$("#slideStage");if(!p){stage.innerHTML='<div class="empty">Chưa có project. Hãy tạo project trước.</div>';$("#editorPageInfo").textContent="Slide 0 / 0";return}const plan=ensurePlan(p);if(editorSlideIndex>=plan.length)editorSlideIndex=Math.max(0,plan.length-1);const s=plan[editorSlideIndex]||{title:"",body:"",layout:"COVER"};const token=++editorRenderToken;stage.innerHTML='<div class="pptx-render-loading">✦ ĐANG ÁP DỤNG TEMPLATE...</div>';let templateSvg="",templateSlideCount=0;try{const t=templates.find(x=>x.id===p.templateId);if(t&&!t.builtin&&t.type==="PPTX"){const rec=await getFile(t.id);if(rec){const info=await parsePptx(rec.blob);templateSlideCount=info.slides.length;const idx=templateSlideCount?editorSlideIndex%templateSlideCount:0;templateSvg=await renderPptxSlideSvg(rec.blob,idx);}}}catch(e){console.warn("KitaM template apply:",e);}if(token!==editorRenderToken)return;const layoutClass='layout-'+escapeHtml(String(s.layout).toLowerCase().replace(/\s/g,"-").replace("+","plus"));if(templateSvg){stage.innerHTML='<div class="slide-template-stage"><div class="slide-template-bg">'+templateSvg+'</div><div class="slide-template-content"><div class="slide-template-badge">KITAM · TEMPLATE '+String((editorSlideIndex%Math.max(1,templateSlideCount))+1).padStart(2,"0")+'</div><h2>'+escapeHtml(s.title||"Untitled")+'</h2><div class="slide-body">'+escapeHtml(s.body||"").replace(/\n/g,"<br>")+'</div>'+((s.imageUrl)?'<img class="slide-image" src="'+escapeHtml(s.imageUrl)+'" alt="">':"")+'<div class="slide-foot">KitaM · '+(editorSlideIndex+1)+' / '+plan.length+'</div></div></div>';}else{stage.innerHTML='<div class="slide-canvas '+layoutClass+'"><div class="slide-magic">KITAM · '+escapeHtml(p.style||"ARCANE")+'</div><h2>'+escapeHtml(s.title||"Untitled")+'</h2><div class="slide-body">'+escapeHtml(s.body||"").replace(/\n/g,"<br>")+'</div>'+((s.imageUrl)?'<img class="slide-image" src="'+escapeHtml(s.imageUrl)+'" alt="">':"")+'<div class="slide-foot">KitaM · '+(editorSlideIndex+1)+' / '+plan.length+'</div></div>';}$("#editorPageInfo").textContent="Slide "+(editorSlideIndex+1)+" / "+plan.length;$("#editTitle").value=s.title||"";$("#editBody").value=s.body||"";$("#editLayout").value=s.layout||"TITLE + CONTENT";const is=editorImages(p);$("#editImage").innerHTML='<option value="">Không dùng ảnh</option>'+is.map(x=>'<option value="'+escapeHtml(x.url)+'">'+escapeHtml(x.title||"Ảnh")+'</option>').join("");$("#editImage").value=s.imageUrl||"";const sources=p.sources||[];$("#editSources").innerHTML=sources.length?sources.map((x,i)=>'<div class="editor-source">['+(i+1)+'] '+escapeHtml(x.title||"Nguồn")+'</div>').join(""):'<div class="muted">Chưa gắn nguồn.</div>';}
+
+const PPTX_NS={p:"http://schemas.openxmlformats.org/presentationml/2006/main",a:"http://schemas.openxmlformats.org/drawingml/2006/main"};
+function xmlEls(node,ns,tag){return [...node.getElementsByTagNameNS(ns,tag)];}
+function pptxShapeInfo(shape){
+  const c=shape.getElementsByTagNameNS(PPTX_NS.p,"cNvPr")[0];
+  const ph=shape.getElementsByTagNameNS(PPTX_NS.p,"ph")[0];
+  const xfrm=shape.getElementsByTagNameNS(PPTX_NS.a,"xfrm")[0]||shape.getElementsByTagNameNS(PPTX_NS.p,"xfrm")[0];
+  const off=xfrm?.getElementsByTagNameNS(PPTX_NS.a,"off")[0], ext=xfrm?.getElementsByTagNameNS(PPTX_NS.a,"ext")[0];
+  const texts=xmlEls(shape,PPTX_NS.a,"t").map(x=>x.textContent||"").join("").trim();
+  const sizes=[...xmlEls(shape,PPTX_NS.a,"rPr"),...xmlEls(shape,PPTX_NS.a,"defRPr")].map(x=>Number(x.getAttribute("sz")||0)/100).filter(Boolean);
+  return {shape,id:c?.getAttribute("id")||"",name:c?.getAttribute("name")||"",text:texts,placeholder:ph?.getAttribute("type")||"",x:Number(off?.getAttribute("x")||0),y:Number(off?.getAttribute("y")||0),w:Number(ext?.getAttribute("cx")||0),h:Number(ext?.getAttribute("cy")||0),fontSize:sizes.length?Math.max(...sizes):0};
+}
+function templateTextRole(o,all){
+  const ph=o.placeholder.toLowerCase();
+  if(["title","ctrtitle"].includes(ph))return"title";
+  if(["subtitle"].includes(ph))return"subtitle";
+  if(["body","obj","text"].includes(ph))return"body";
+  if(["ftr","sldnum","dt"].includes(ph))return"footer";
+  const t=o.text.trim(), low=t.toLowerCase();
+  if(!t)return"decorative";
+  if(/^(?:slide|trang)\s*\d+$/i.test(t)||/^(?:www\.|https?:\/\/)/i.test(t))return"footer";
+  if(/\b(?:author|presented by|người trình bày|sinh viên|học viên|lớp|khoa)\b/i.test(t))return"author";
+  if(/^[A-ZÀ-ỸĐ0-9][A-ZÀ-ỸĐ0-9\s&'’.-]{2,24}$/.test(t)&&t.split(/\s+/).length<=3)return"decorative";
+  const maxFont=Math.max(...all.map(x=>x.fontSize||0),1);
+  if((o.fontSize>=Math.max(20,maxFont*.55)||o.h>0&&o.w>0&&o.w/o.h>3)&&t.length>=8&&t.split(/\s+/).length>=2)return"titleCandidate";
+  if(/\b(?:khám phá|giới thiệu|tổng quan|mục tiêu|thông điệp|overview|introduction)\b/i.test(low))return"subtitle";
+  if(t.length<=110&&o.y>0)return"bodyCandidate";
+  return"decorative";
+}
+async function analyzePptxSlide(blob,index=0){
+  const zip=await JSZip.loadAsync(blob);
+  const names=Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a,b)=>Number(a.match(/\d+/)[0])-Number(b.match(/\d+/)[0]));
+  const name=names[index];if(!name)throw new Error("Không tìm thấy slide PPTX.");
+  const xml=await zip.file(name).async("text");
+  const doc=new DOMParser().parseFromString(xml,"application/xml");
+  const shapes=xmlEls(doc,PPTX_NS.p,"sp").map(pptxShapeInfo).filter(o=>o.text);
+  const tagged=shapes.map(o=>({...o,role:templateTextRole(o,shapes)}));
+  const titleCandidates=tagged.filter(o=>["title","titleCandidate"].includes(o.role)).sort((a,b)=>(b.fontSize-a.fontSize)||a.y-b.y);
+  const subtitleCandidates=tagged.filter(o=>o.role==="subtitle").sort((a,b)=>a.y-b.y);
+  const bodyCandidates=tagged.filter(o=>o.role==="body"||o.role==="bodyCandidate").sort((a,b)=>a.y-b.y);
+  const authorCandidates=tagged.filter(o=>o.role==="author").sort((a,b)=>a.y-b.y);
+  if(!titleCandidates.length){
+    const fallback=tagged.filter(o=>o.role!=="decorative"&&o.role!=="footer").sort((a,b)=>(b.fontSize-a.fontSize)||a.y-b.y)[0];
+    if(fallback)titleCandidates.push(fallback);
+  }
+  if(!subtitleCandidates.length){
+    const cand=tagged.filter(o=>o!==titleCandidates[0]&&o.role!=="decorative"&&o.role!=="footer").sort((a,b)=>a.y-b.y)[0];
+    if(cand&&cand!==titleCandidates[0])subtitleCandidates.push(cand);
+  }
+  if(!authorCandidates.length){
+    const cand=tagged.filter(o=>o!==titleCandidates[0]&&o!==subtitleCandidates[0]&&o.role!=="decorative"&&o.role!=="footer").sort((a,b)=>b.y-a.y)[0];
+    if(cand&&cand!==titleCandidates[0]&&cand!==subtitleCandidates[0])authorCandidates.push(cand);
+  }
+  return {zip,xml,doc,slideName:name,objects:tagged,roles:{title:titleCandidates[0]||null,subtitle:subtitleCandidates[0]||null,body:bodyCandidates[0]||null,author:authorCandidates[0]||null,footer:tagged.find(o=>o.role==="footer")||null}};
+}
+function setPptxShapeText(shape,value){
+  const paras=xmlEls(shape,PPTX_NS.a,"p");
+  const lines=String(value??"").split(/\n+/).filter(x=>x.trim()!=="");
+  const compact=lines.length>1?lines.join(" • "):(lines[0]||"");
+  const textNodes=xmlEls(shape,PPTX_NS.a,"t");
+  if(!textNodes.length)return false;
+  textNodes.forEach((n,i)=>{n.textContent=i===0?compact:"";});
+  return true;
+}
+async function applySemanticTemplate(blob,index,slideData){
+  const a=await analyzePptxSlide(blob,index);
+  const s=slideData||{};
+  const isCover=String(s.layout||"").toUpperCase()==="COVER"||index===0;
+  const values={};
+  if(a.roles.title)values.title=s.title||"";
+  if(a.roles.subtitle)values.subtitle=isCover?(s.body||""):"";
+  if(a.roles.author)values.author=isCover?([s.author,s.organization].filter(Boolean).join(" • ")||s.body||""):"";
+  if(a.roles.body)values.body=s.body||"";
+  for(const [role,obj] of Object.entries(a.roles)){if(obj&&Object.prototype.hasOwnProperty.call(values,role))setPptxShapeText(obj.shape,values[role]);}
+  const out=new XMLSerializer().serializeToString(a.doc);
+  await a.zip.file(a.slideName,out);
+  const bytes=await a.zip.generateAsync({type:"uint8array"});
+  return {blob:new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.presentationml.presentation"}),analysis:a};
+}
+async function renderAppliedTemplate(blob,index,slideData){
+  const applied=await applySemanticTemplate(blob,index,slideData);
+  const svg=await renderPptxSlideSvg(applied.blob,index);
+  return {svg,blob:applied.blob,analysis:applied.analysis};
+}
+async function renderEditor(){const p=getEditorProject(),stage=$("#slideStage");if(!p){stage.innerHTML='<div class="empty">Chưa có project. Hãy tạo project trước.</div>';$("#editorPageInfo").textContent="Slide 0 / 0";return}const plan=ensurePlan(p);if(editorSlideIndex>=plan.length)editorSlideIndex=Math.max(0,plan.length-1);const s=plan[editorSlideIndex]||{title:"",body:"",layout:"COVER"};const token=++editorRenderToken;stage.innerHTML='<div class="pptx-render-loading">✦ ĐANG PHÂN TÍCH OBJECT + THAY NỘI DUNG TEMPLATE...</div>';let templateSvg="",templateSlideCount=0,analysis=null;try{const t=templates.find(x=>x.id===p.templateId);if(t&&!t.builtin&&t.type==="PPTX"){const rec=await getFile(t.id);if(rec){const info=await parsePptx(rec.blob);templateSlideCount=info.slides.length;const idx=templateSlideCount?editorSlideIndex%templateSlideCount:0;const applied=await renderAppliedTemplate(rec.blob,idx,s);templateSvg=applied.svg;analysis=applied.analysis;}}}catch(e){console.warn("KitaM semantic template apply:",e);}if(token!==editorRenderToken)return;const layoutClass='layout-'+escapeHtml(String(s.layout).toLowerCase().replace(/\s/g,"-").replace("+","plus"));if(templateSvg){const roles=analysis?.roles||{};const detected=[roles.title&&"TITLE",roles.subtitle&&"SUBTITLE",roles.body&&"BODY",roles.author&&"AUTHOR"].filter(Boolean).join(" • ");stage.innerHTML='<div class="slide-template-stage"><div class="slide-template-bg">'+templateSvg+'</div><div class="slide-template-content kitam-template-overlay-disabled"><div class="slide-template-badge">KITAM · OBJECT MAP '+escapeHtml(detected||"AUTO")+'</div></div></div>';}else{stage.innerHTML='<div class="slide-canvas '+layoutClass+'"><div class="slide-magic">KITAM · '+escapeHtml(p.style||"ARCANE")+'</div><h2>'+escapeHtml(s.title||"Untitled")+'</h2><div class="slide-body">'+escapeHtml(s.body||"").replace(/\n/g,"<br>")+'</div>'+((s.imageUrl)?'<img class="slide-image" src="'+escapeHtml(s.imageUrl)+'" alt="">':"")+'<div class="slide-foot">KitaM · '+(editorSlideIndex+1)+' / '+plan.length+'</div></div>';}$("#editorPageInfo").textContent="Slide "+(editorSlideIndex+1)+" / "+plan.length;$("#editTitle").value=s.title||"";$("#editBody").value=s.body||"";$("#editLayout").value=s.layout||"TITLE + CONTENT";const is=editorImages(p);$("#editImage").innerHTML='<option value="">Không dùng ảnh</option>'+is.map(x=>'<option value="'+escapeHtml(x.url)+'">'+escapeHtml(x.title||"Ảnh")+'</option>').join("");$("#editImage").value=s.imageUrl||"";const sources=p.sources||[];$("#editSources").innerHTML=sources.length?sources.map((x,i)=>'<div class="editor-source">['+(i+1)+'] '+escapeHtml(x.title||"Nguồn")+'</div>').join(""):'<div class="muted">Chưa gắn nguồn.</div>';}
 async function closeNativePptEditor(){try{nativePptView?.destroy?.();nativePptSelection?.destroy?.();nativePptSession?.dispose?.();}catch(e){}nativePptView=null;nativePptSelection=null;nativePptSession=null;const panel=$("#nativePptxPanel");if(panel)panel.hidden=true;}
 async function openNativePptEditor(){const p=getEditorProject();if(!p){toast("Hãy chọn project trước.");return}const t=templates.find(x=>x.id===p.templateId);if(!t||t.builtin||t.type!=="PPTX"){toast("Project này chưa dùng template PPTX thật.");return}const rec=await getFile(t.id);if(!rec){toast("Không tìm thấy file PPTX gốc.");return}await closeNativePptEditor();const panel=$("#nativePptxPanel"),canvas=$("#nativePptxCanvas"),pane=$("#nativePptxSelection");if(!panel||!canvas||!pane)return;panel.hidden=false;canvas.innerHTML='<div class="pptx-render-loading">✦ ĐANG MỞ EDITOR PPTX...</div>';pane.innerHTML="";try{const mod=await import("https://cdn.jsdelivr.net/npm/@web-ppt/editor@next/+esm");nativePptSession=await mod.openEditor(rec.blob);nativePptView=nativePptSession.mount(canvas,{mode:"edit",zoom:1,textMode:"auto",snapping:true});nativePptSelection=nativePptSession.mountSelectionPane(pane,{mode:"edit",slideId:nativePptView.slideId});toast("✦ Đã mở trình chỉnh sửa PPTX thật.");}catch(e){console.error("KitaM native PPTX editor:",e);canvas.innerHTML='<div class="empty">⚠ Không mở được editor PPTX. Hãy kiểm tra kết nối mạng/CDN rồi thử lại.</div>';toast("Không mở được editor PPTX.");}}
 async function saveNativePptEditor(){if(!nativePptSession){toast("Chưa mở editor.");return}const p=getEditorProject(),t=p&&templates.find(x=>x.id===p.templateId);if(!p||!t)return;try{const bytes=await nativePptSession.editor.save();const file=new File([bytes],t.fileName||((t.name||"template")+".pptx"),{type:"application/vnd.openxmlformats-officedocument.presentationml.presentation"});await putFile(t.id,file);t.size=file.size;t.fileName=file.name;t.desc="Đã chỉnh sửa trực tiếp • "+Math.round(file.size/1024)+" KB";saveMeta();await renderTemplates();toast("✦ Đã lưu thay đổi vào file PPTX gốc của template.");}catch(e){console.error("KitaM save PPTX:",e);toast("Không thể lưu PPTX: "+(e.message||e));}}
