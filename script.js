@@ -18,6 +18,10 @@ let editorProjectId="";
 let editorSlideIndex=0;
 let editorRenderToken=0;
 let nativePptSession=null,nativePptView=null,nativePptSelection=null;
+const pptxAnalysisCache=new Map();
+const pptxEditorModulePromise=import("https://cdn.jsdelivr.net/npm/@web-ppt/editor@0.5.0-beta.1/+esm").catch(e=>{console.warn("KitaM PPTX editor module:",e);throw e;});
+function pptxCacheKey(id,blob){return String(id||"template")+"::"+blob.size+"::"+(blob.lastModified||0);}
+
 
 function saveMeta(){localStorage.setItem("kitam_templates",JSON.stringify(templates));localStorage.setItem("kitam_projects",JSON.stringify(projects));localStorage.setItem("kitam_research_sources",JSON.stringify(researchSources));}
 function apiBase(){return (localStorage.getItem("kitam_api_base")||"").trim().replace(/\/$/,"");}
@@ -100,7 +104,8 @@ function scoreTitleCandidate(o,all){
 function pickBest(list,all,scoreFn){
   return list.slice().sort((a,b)=>scoreFn(b,all)-scoreFn(a,all))[0]||null;
 }
-async function analyzePptxSlide(blob,index=0){
+async function analyzePptxSlide(blob,index=0,cacheKey=""){
+  const cache=cacheKey&&pptxAnalysisCache.get(cacheKey);
   const zip=await JSZip.loadAsync(blob);
   const names=Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a,b)=>Number(a.match(/\d+/)[0])-Number(b.match(/\d+/)[0]));
   const name=names[index];if(!name)throw new Error("Không tìm thấy slide PPTX.");
@@ -142,7 +147,9 @@ async function analyzePptxSlide(blob,index=0){
     body:body?(placeholders.body?100:45):0,
     author:finalAuthor?(author?100:65):0
   };
-  return {zip,xml,doc,slideName:name,objects:tagged,roles:{title,subtitle,body,author:finalAuthor,footer:tagged.find(o=>o.role==="footer")||null},confidence,placeholders};
+  const result={zip,xml,doc,slideName:name,slideCount:names.length,objects:tagged,roles:{title,subtitle,body,author:finalAuthor,footer:tagged.find(o=>o.role==="footer")||null},confidence,placeholders};
+  if(cacheKey)pptxAnalysisCache.set(cacheKey,{slideCount:names.length,objects:tagged.map(({shape,id,name,text,placeholder,x,y,w,h,fontSize,role})=>({id,name,text,placeholder,x,y,w,h,fontSize,role}))});
+  return result;
 }
 function setPptxShapeText(shape,value){
   const textNodes=xmlEls(shape,PPTX_NS.a,"t");
@@ -152,8 +159,8 @@ function setPptxShapeText(shape,value){
   textNodes.forEach((n,i)=>{n.textContent=i===0?compact:"";});
   return true;
 }
-async function applySemanticTemplate(blob,index,slideData){
-  const a=await analyzePptxSlide(blob,index);
+async function applySemanticTemplate(blob,index,slideData,cacheKey=""){
+  const a=await analyzePptxSlide(blob,index,cacheKey);
   const s=slideData||{};
   const isCover=String(s.layout||"").toUpperCase()==="COVER"||index===0;
   const values={};
@@ -170,14 +177,14 @@ async function applySemanticTemplate(blob,index,slideData){
   const bytes=await a.zip.generateAsync({type:"uint8array"});
   return {blob:new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.presentationml.presentation"}),analysis:a};
 }
-async function renderAppliedTemplate(blob,index,slideData){
-  const applied=await applySemanticTemplate(blob,index,slideData);
+async function renderAppliedTemplate(blob,index,slideData,cacheKey=""){
+  const applied=await applySemanticTemplate(blob,index,slideData,cacheKey);
   const svg=await renderPptxSlideSvg(applied.blob,index);
   return {svg,blob:applied.blob,analysis:applied.analysis};
 }
-async function renderEditor(){const p=getEditorProject(),stage=$("#slideStage");if(!p){stage.innerHTML='<div class="empty">Chưa có project. Hãy tạo project trước.</div>';$("#editorPageInfo").textContent="Slide 0 / 0";return}const plan=ensurePlan(p);if(editorSlideIndex>=plan.length)editorSlideIndex=Math.max(0,plan.length-1);const s=plan[editorSlideIndex]||{title:"",body:"",layout:"COVER"};const token=++editorRenderToken;stage.innerHTML='<div class="pptx-render-loading">✦ ĐANG PHÂN TÍCH OBJECT + THAY NỘI DUNG TEMPLATE...</div>';let templateSvg="",templateSlideCount=0,analysis=null;try{const t=templates.find(x=>x.id===p.templateId);if(t&&!t.builtin&&t.type==="PPTX"){const rec=await getFile(t.id);if(rec){const info=await parsePptx(rec.blob);templateSlideCount=info.slides.length;const idx=templateSlideCount?editorSlideIndex%templateSlideCount:0;const applied=await renderAppliedTemplate(rec.blob,idx,s);templateSvg=applied.svg;analysis=applied.analysis;}}}catch(e){console.warn("KitaM semantic template apply:",e);}if(token!==editorRenderToken)return;const layoutClass='layout-'+escapeHtml(String(s.layout).toLowerCase().replace(/\s/g,"-").replace("+","plus"));if(templateSvg){const roles=analysis?.roles||{};const detected=[roles.title&&"TITLE",roles.subtitle&&"SUBTITLE",roles.body&&"BODY",roles.author&&"AUTHOR"].filter(Boolean).join(" • ");stage.innerHTML='<div class="slide-template-stage"><div class="slide-template-bg">'+templateSvg+'</div><div class="slide-template-content kitam-template-overlay-disabled"><div class="slide-template-badge">KITAM · OBJECT MAP '+escapeHtml(detected||"AUTO")+'</div></div></div>';}else{stage.innerHTML='<div class="slide-canvas '+layoutClass+'"><div class="slide-magic">KITAM · '+escapeHtml(p.style||"ARCANE")+'</div><h2>'+escapeHtml(s.title||"Untitled")+'</h2><div class="slide-body">'+escapeHtml(s.body||"").replace(/\n/g,"<br>")+'</div>'+((s.imageUrl)?'<img class="slide-image" src="'+escapeHtml(s.imageUrl)+'" alt="">':"")+'<div class="slide-foot">KitaM · '+(editorSlideIndex+1)+' / '+plan.length+'</div></div>';}$("#editorPageInfo").textContent="Slide "+(editorSlideIndex+1)+" / "+plan.length;$("#editTitle").value=s.title||"";$("#editBody").value=s.body||"";$("#editLayout").value=s.layout||"TITLE + CONTENT";const is=editorImages(p);$("#editImage").innerHTML='<option value="">Không dùng ảnh</option>'+is.map(x=>'<option value="'+escapeHtml(x.url)+'">'+escapeHtml(x.title||"Ảnh")+'</option>').join("");$("#editImage").value=s.imageUrl||"";const sources=p.sources||[];$("#editSources").innerHTML=sources.length?sources.map((x,i)=>'<div class="editor-source">['+(i+1)+'] '+escapeHtml(x.title||"Nguồn")+'</div>').join(""):'<div class="muted">Chưa gắn nguồn.</div>';}
+async function renderEditor(){const p=getEditorProject(),stage=$("#slideStage");if(!p){stage.innerHTML='<div class="empty">Chưa có project. Hãy tạo project trước.</div>';$("#editorPageInfo").textContent="Slide 0 / 0";return}const plan=ensurePlan(p);if(editorSlideIndex>=plan.length)editorSlideIndex=Math.max(0,plan.length-1);const s=plan[editorSlideIndex]||{title:"",body:"",layout:"COVER"};const token=++editorRenderToken;stage.innerHTML='<div class="pptx-render-loading">✦ ĐANG PHÂN TÍCH OBJECT + THAY NỘI DUNG TEMPLATE...</div>';let templateSvg="",templateSlideCount=0,analysis=null;try{const t=templates.find(x=>x.id===p.templateId);if(t&&!t.builtin&&t.type==="PPTX"){const rec=await getFile(t.id);if(rec){const cacheKey=pptxCacheKey(t.id,rec.blob);const applied=await renderAppliedTemplate(rec.blob,editorSlideIndex,s,cacheKey);templateSlideCount=applied.analysis.slideCount;templateSvg=applied.svg;analysis=applied.analysis;}}}catch(e){console.warn("KitaM semantic template apply:",e);}if(token!==editorRenderToken)return;const layoutClass='layout-'+escapeHtml(String(s.layout).toLowerCase().replace(/\s/g,"-").replace("+","plus"));if(templateSvg){const roles=analysis?.roles||{};const detected=[roles.title&&"TITLE",roles.subtitle&&"SUBTITLE",roles.body&&"BODY",roles.author&&"AUTHOR"].filter(Boolean).join(" • ");stage.innerHTML='<div class="slide-template-stage"><div class="slide-template-bg">'+templateSvg+'</div><div class="slide-template-content kitam-template-overlay-disabled"><div class="slide-template-badge">KITAM · OBJECT MAP '+escapeHtml(detected||"AUTO")+'</div></div></div>';}else{stage.innerHTML='<div class="slide-canvas '+layoutClass+'"><div class="slide-magic">KITAM · '+escapeHtml(p.style||"ARCANE")+'</div><h2>'+escapeHtml(s.title||"Untitled")+'</h2><div class="slide-body">'+escapeHtml(s.body||"").replace(/\n/g,"<br>")+'</div>'+((s.imageUrl)?'<img class="slide-image" src="'+escapeHtml(s.imageUrl)+'" alt="">':"")+'<div class="slide-foot">KitaM · '+(editorSlideIndex+1)+' / '+plan.length+'</div></div>';}$("#editorPageInfo").textContent="Slide "+(editorSlideIndex+1)+" / "+plan.length;$("#editTitle").value=s.title||"";$("#editBody").value=s.body||"";$("#editLayout").value=s.layout||"TITLE + CONTENT";const is=editorImages(p);$("#editImage").innerHTML='<option value="">Không dùng ảnh</option>'+is.map(x=>'<option value="'+escapeHtml(x.url)+'">'+escapeHtml(x.title||"Ảnh")+'</option>').join("");$("#editImage").value=s.imageUrl||"";const sources=p.sources||[];$("#editSources").innerHTML=sources.length?sources.map((x,i)=>'<div class="editor-source">['+(i+1)+'] '+escapeHtml(x.title||"Nguồn")+'</div>').join(""):'<div class="muted">Chưa gắn nguồn.</div>';}
 async function closeNativePptEditor(){try{nativePptView?.destroy?.();nativePptSelection?.destroy?.();nativePptSession?.dispose?.();}catch(e){}nativePptView=null;nativePptSelection=null;nativePptSession=null;const panel=$("#nativePptxPanel");if(panel)panel.hidden=true;}
-async function openNativePptEditor(){const p=getEditorProject();if(!p){toast("Hãy chọn project trước.");return}const t=templates.find(x=>x.id===p.templateId);if(!t||t.builtin||t.type!=="PPTX"){toast("Project này chưa dùng template PPTX thật.");return}const rec=await getFile(t.id);if(!rec){toast("Không tìm thấy file PPTX gốc.");return}await closeNativePptEditor();const panel=$("#nativePptxPanel"),canvas=$("#nativePptxCanvas"),pane=$("#nativePptxSelection");if(!panel||!canvas||!pane)return;panel.hidden=false;canvas.innerHTML='<div class="pptx-render-loading">✦ ĐANG MỞ EDITOR PPTX...</div>';pane.innerHTML="";try{const mod=await import("https://cdn.jsdelivr.net/npm/@web-ppt/editor@next/+esm");nativePptSession=await mod.openEditor(rec.blob);nativePptView=nativePptSession.mount(canvas,{mode:"edit",zoom:1,textMode:"auto",snapping:true});nativePptSelection=nativePptSession.mountSelectionPane(pane,{mode:"edit",slideId:nativePptView.slideId});toast("✦ Đã mở trình chỉnh sửa PPTX thật.");}catch(e){console.error("KitaM native PPTX editor:",e);canvas.innerHTML='<div class="empty">⚠ Không mở được editor PPTX. Hãy kiểm tra kết nối mạng/CDN rồi thử lại.</div>';toast("Không mở được editor PPTX.");}}
+async function openNativePptEditor(){const p=getEditorProject();if(!p){toast("Hãy chọn project trước.");return}const t=templates.find(x=>x.id===p.templateId);if(!t||t.builtin||t.type!=="PPTX"){toast("Project này chưa dùng template PPTX thật.");return}const rec=await getFile(t.id);if(!rec){toast("Không tìm thấy file PPTX gốc.");return}await closeNativePptEditor();const panel=$("#nativePptxPanel"),canvas=$("#nativePptxCanvas"),pane=$("#nativePptxSelection");if(!panel||!canvas||!pane)return;panel.hidden=false;canvas.innerHTML='<div class="pptx-render-loading">✦ ĐANG MỞ EDITOR PPTX...</div>';pane.innerHTML="";try{const mod=await pptxEditorModulePromise;nativePptSession=await mod.openEditor(rec.blob);nativePptView=nativePptSession.mount(canvas,{mode:"edit",zoom:1,textMode:"auto",snapping:true});nativePptSelection=nativePptSession.mountSelectionPane(pane,{mode:"edit",slideId:nativePptView.slideId});toast("✦ Đã mở trình chỉnh sửa PPTX thật.");}catch(e){console.error("KitaM native PPTX editor:",e);canvas.innerHTML='<div class="empty">⚠ Không mở được editor PPTX. Hãy kiểm tra kết nối mạng/CDN rồi thử lại.</div>';toast("Không mở được editor PPTX.");}}
 async function saveNativePptEditor(){if(!nativePptSession){toast("Chưa mở editor.");return}const p=getEditorProject(),t=p&&templates.find(x=>x.id===p.templateId);if(!p||!t)return;try{const bytes=await nativePptSession.editor.save();const file=new File([bytes],t.fileName||((t.name||"template")+".pptx"),{type:"application/vnd.openxmlformats-officedocument.presentationml.presentation"});await putFile(t.id,file);t.size=file.size;t.fileName=file.name;t.desc="Đã chỉnh sửa trực tiếp • "+Math.round(file.size/1024)+" KB";saveMeta();await renderTemplates();toast("✦ Đã lưu thay đổi vào file PPTX gốc của template.");}catch(e){console.error("KitaM save PPTX:",e);toast("Không thể lưu PPTX: "+(e.message||e));}}
 function saveEditorSlide(){const p=getEditorProject();if(!p)return;const s=ensurePlan(p)[editorSlideIndex];if(!s)return;s.title=$("#editTitle").value;s.body=$("#editBody").value;s.layout=$("#editLayout").value;s.imageUrl=$("#editImage").value;saveMeta();renderEditor();toast("✦ Đã lưu slide "+(editorSlideIndex+1));}
 async function renderCreateTemplatePreview(){
@@ -197,7 +204,7 @@ async function renderCreateTemplatePreview(){
     if(!rec)throw new Error("Không tìm thấy file template.");
     const f=new FormData($("#createForm"));
     const data={title:f.get("title")||"Tên bài của bạn",author:f.get("author")||"Người trình bày",organization:f.get("organization")||"",body:""};
-    const applied=await renderAppliedTemplate(rec.blob,0,data);
+    const applied=await renderAppliedTemplate(rec.blob,0,data,pptxCacheKey(t.id,rec.blob));
     const roles=applied.analysis?.roles||{};
     const detected=[roles.title&&"TITLE",roles.subtitle&&"SUBTITLE",roles.body&&"BODY",roles.author&&"AUTHOR"].filter(Boolean).join(" • ");
     host.innerHTML='<div class="create-template-render">'+(applied.svg||'<span>Không render được template.</span>')+'</div><div class="slide-number">01</div><div class="template-map-badge">✦ OBJECT MAP: '+escapeHtml(detected||"AUTO")+'</div>';
