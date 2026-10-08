@@ -124,34 +124,32 @@ async function openNativePptEditor(){const p=getEditorProject();if(!p){toast("H�
 async function saveNativePptEditor(){if(!nativePptSession){toast("Chưa mở editor.");return}const p=getEditorProject(),t=p&&templates.find(x=>x.id===p.templateId);if(!p||!t)return;try{const bytes=await nativePptSession.editor.save();const file=new File([bytes],t.fileName||((t.name||"template")+".pptx"),{type:"application/vnd.openxmlformats-officedocument.presentationml.presentation"});await putFile(t.id,file);t.size=file.size;t.fileName=file.name;t.desc="Đã chỉnh sửa trực tiếp • "+Math.round(file.size/1024)+" KB";saveMeta();await renderTemplates();toast("✦ Đã lưu thay đổi vào file PPTX gốc của template.");}catch(e){console.error("KitaM save PPTX:",e);toast("Không thể lưu PPTX: "+(e.message||e));}}
 function saveEditorSlide(){const p=getEditorProject();if(!p)return;const s=ensurePlan(p)[editorSlideIndex];if(!s)return;s.title=$("#editTitle").value;s.body=$("#editBody").value;s.layout=$("#editLayout").value;s.imageUrl=$("#editImage").value;saveMeta();renderEditor();toast("✦ Đã lưu slide "+(editorSlideIndex+1));}
 async function renderCreateTemplatePreview(){
-    const host=$("#create .slide-preview");
-    if(!host)return;
-    const id=$("#templateSelect")?.value||selectedTemplate;
-    const t=templates.find(x=>x.id===id);
-    if(!t||t.builtin||t.type!=="PPTX"){
-      host.innerHTML='<div class="slide-number">01</div><div class="preview-orb">✦</div><h3 id="previewTitle">Tên bài của bạn</h3><p id="previewAuthor">Người trình bày</p>';
-      const form=$("#createForm");
-      if(form){
-        const f=new FormData(form);
-        $("#previewTitle").textContent=f.get("title")||"Tên bài của bạn";
-        $("#previewAuthor").textContent=f.get("author")||"Người trình bày";
-      }
-      return;
-    }
-    host.innerHTML='<div class="pptx-render-loading">✦ ĐANG ÁP DỤNG MẪU...</div>';
-    try{
-      const rec=await getFile(t.id);
-      if(!rec)throw new Error("Không tìm thấy file template.");
-      const svg=await renderPptxSlideSvg(rec.blob,0);
-      host.innerHTML='<div class="create-template-render">'+(svg||'<span>Không render được template.</span>')+'</div><div class="slide-number">01</div><div class="create-template-overlay"><strong id="previewTitle"></strong><span id="previewAuthor"></span></div>';
-      const f=new FormData($("#createForm"));
-      $("#previewTitle").textContent=f.get("title")||"Tên bài của bạn";
-      $("#previewAuthor").textContent=f.get("author")||"Người trình bày";
-    }catch(e){
-      console.warn("KitaM create template preview:",e);
-      host.innerHTML='<div class="slide-number">01</div><div class="preview-orb">⚠</div><h3 id="previewTitle">Không render được mẫu</h3><p id="previewAuthor">File gốc vẫn được giữ nguyên.</p>';
-    }
+  const host=$("#create .slide-preview");
+  if(!host)return;
+  const id=$("#templateSelect")?.value||selectedTemplate;
+  const t=templates.find(x=>x.id===id);
+  if(!t||t.builtin||t.type!=="PPTX"){
+    host.innerHTML='<div class="slide-number">01</div><div class="preview-orb">✦</div><h3 id="previewTitle">Tên bài của bạn</h3><p id="previewAuthor">Người trình bày</p>';
+    const form=$("#createForm");
+    if(form){const f=new FormData(form);$("#previewTitle").textContent=f.get("title")||"Tên bài của bạn";$("#previewAuthor").textContent=f.get("author")||"Người trình bày";}
+    return;
   }
+  host.innerHTML='<div class="pptx-render-loading">✦ ĐANG NHẬN DIỆN OBJECT + KÝ TỰ...</div>';
+  try{
+    const rec=await getFile(t.id);
+    if(!rec)throw new Error("Không tìm thấy file template.");
+    const f=new FormData($("#createForm"));
+    const data={title:f.get("title")||"Tên bài của bạn",author:f.get("author")||"Người trình bày",organization:f.get("organization")||"",body:""};
+    const applied=await renderAppliedTemplate(rec.blob,0,data);
+    const roles=applied.analysis?.roles||{};
+    const detected=[roles.title&&"TITLE",roles.subtitle&&"SUBTITLE",roles.body&&"BODY",roles.author&&"AUTHOR"].filter(Boolean).join(" • ");
+    host.innerHTML='<div class="create-template-render">'+(applied.svg||'<span>Không render được template.</span>')+'</div><div class="slide-number">01</div><div class="template-map-badge">✦ OBJECT MAP: '+escapeHtml(detected||"AUTO")+'</div>';
+  }catch(e){
+    console.warn("KitaM create template preview:",e);
+    host.innerHTML='<div class="slide-number">01</div><div class="preview-orb">⚠</div><h3 id="previewTitle">Không render được mẫu</h3><p id="previewAuthor">File gốc vẫn được giữ nguyên.</p>';
+  }
+}
+
 function showPage(id){$$(".page").forEach(p=>p.classList.toggle("active",p.id===id));$$(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===id));window.scrollTo({top:0,behavior:"smooth"});if(id==="templates")renderTemplates();if(id==="projects")renderProjects();if(id==="research")renderSources();if(id==="images")renderImages();if(id==="create"){fillTemplateSelect();renderCreateTemplatePreview();}if(id==="editor"){fillEditorProjects();renderEditor();}}
 $$("[data-page]").forEach(el=>el.addEventListener("click",()=>showPage(el.dataset.page)));
 
