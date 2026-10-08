@@ -98,3 +98,6 @@ h1,h2,h3,p{margin-top:0}
 /* Semantic PPTX template mapping */
 .template-map-badge{position:absolute;left:18px;bottom:14px;z-index:6;padding:6px 10px;border:1px solid rgba(120,255,220,.65);background:rgba(2,15,20,.78);color:#8fffe1;font:700 10px/1.2 monospace;letter-spacing:.06em;pointer-events:none;text-shadow:0 0 8px rgba(100,255,220,.45)}
 .kitam-template-overlay-disabled{pointer-events:none!important;background:transparent!important;position:absolute;inset:0;z-index:3}
+
+/* B3.1 — native editor quick preview while the editing session warms */
+.native-quick-preview{width:min(100%,1100px);aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;position:relative;background:#02080c;border:1px solid #17404c;overflow:hidden}.native-quick-preview-art{width:100%;height:100%;display:flex;align-items:center;justify-content:center}.native-quick-preview-art svg{display:block;width:100%;height:100%;object-fit:contain}.native-quick-preview-note{position:absolute;left:14px;bottom:12px;padding:7px 10px;background:rgba(2,15,20,.88);border:1px solid #22e9ff;color:#8fffe1;font:700 9px/1 monospace;letter-spacing:.06em;box-shadow:3px 3px 0 #02080c}
