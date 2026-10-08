@@ -1,4 +1,4 @@
-const $=s=>document.querySelector(s), qa=s=>[...document.querySelectorAll(s)];
+const q=s=>document.querySelector(s), qa=s=>[...document.querySelectorAll(s)];
 const DB_NAME="kitam_b2",DB_VERSION=1,STORE="files";
 const defaultTemplates=[
 {id:"starter-cyan",name:"Astral Cyan",type:"PPTX",icon:"✦",desc:"Mẫu thử nghiệm phong cách ma thuật xanh.",builtin:true},
