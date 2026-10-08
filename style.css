@@ -94,3 +94,7 @@ h1,h2,h3,p{margin-top:0}
 
 /* B3 — native PPTX object editor */
 .native-pptx-panel{margin-top:18px;border:3px solid var(--cyan);background:#06131a;box-shadow:7px 7px 0 #02080c}.native-pptx-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border-bottom:2px solid #17404c;color:var(--muted);font-size:10px}.native-pptx-toolbar strong{color:var(--cyan);letter-spacing:1px}.native-pptx-toolbar>div{margin-left:auto;display:flex;gap:8px}.native-pptx-layout{display:grid;grid-template-columns:minmax(0,1fr) 260px;min-height:620px}.native-pptx-canvas{min-width:0;min-height:620px;background:#02080c;display:flex;align-items:center;justify-content:center;overflow:auto}.native-pptx-selection{border-left:2px solid #17404c;background:#071922;overflow:auto;min-height:620px}.native-pptx-selection [data-ppt-selection-pane],.native-pptx-selection>*{max-width:100%}@media(max-width:850px){.native-pptx-layout{grid-template-columns:1fr}.native-pptx-selection{border-left:0;border-top:2px solid #17404c;min-height:220px}}
+
+/* Semantic PPTX template mapping */
+.template-map-badge{position:absolute;left:18px;bottom:14px;z-index:6;padding:6px 10px;border:1px solid rgba(120,255,220,.65);background:rgba(2,15,20,.78);color:#8fffe1;font:700 10px/1.2 monospace;letter-spacing:.06em;pointer-events:none;text-shadow:0 0 8px rgba(100,255,220,.45)}
+.kitam-template-overlay-disabled{pointer-events:none!important;background:transparent!important;position:absolute;inset:0;z-index:3}
