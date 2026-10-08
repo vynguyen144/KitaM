@@ -18,7 +18,9 @@ let editorProjectId="";
 let editorSlideIndex=0;
 let editorRenderToken=0;
 let nativePptSession=null,nativePptView=null,nativePptSelection=null;
+let nativePptWarmSession=null,nativePptWarmPromise=null,nativePptWarmKey="";
 const pptxAnalysisCache=new Map();
+const pptxQuickSvgCache=new Map();
 let pptxEditorModulePromise=null;
 function preloadPptxEditor(){
   if(!pptxEditorModulePromise)pptxEditorModulePromise=import("https://cdn.jsdelivr.net/npm/@web-ppt/editor@0.5.0-beta.1/+esm").catch(e=>{console.warn("KitaM PPTX editor module:",e);pptxEditorModulePromise=null;throw e;});
@@ -187,9 +189,73 @@ async function renderAppliedTemplate(blob,index,slideData,cacheKey=""){
   return {svg,blob:applied.blob,analysis:applied.analysis};
 }
 async function renderEditor(){const p=getEditorProject(),stage=$("#slideStage");if(!p){stage.innerHTML='<div class="empty">Chưa có project. Hãy tạo project trước.</div>';$("#editorPageInfo").textContent="Slide 0 / 0";return}const plan=ensurePlan(p);if(editorSlideIndex>=plan.length)editorSlideIndex=Math.max(0,plan.length-1);const s=plan[editorSlideIndex]||{title:"",body:"",layout:"COVER"};const token=++editorRenderToken;stage.innerHTML='<div class="pptx-render-loading">✦ ĐANG PHÂN TÍCH OBJECT + THAY NỘI DUNG TEMPLATE...</div>';let templateSvg="",templateSlideCount=0,analysis=null;try{const t=templates.find(x=>x.id===p.templateId);if(t&&!t.builtin&&t.type==="PPTX"){const rec=await getFile(t.id);if(rec){const cacheKey=pptxCacheKey(t.id,rec.blob);const applied=await renderAppliedTemplate(rec.blob,editorSlideIndex,s,cacheKey);templateSlideCount=applied.analysis.slideCount;templateSvg=applied.svg;analysis=applied.analysis;}}}catch(e){console.warn("KitaM semantic template apply:",e);}if(token!==editorRenderToken)return;const layoutClass='layout-'+escapeHtml(String(s.layout).toLowerCase().replace(/\s/g,"-").replace("+","plus"));if(templateSvg){const roles=analysis?.roles||{};const detected=[roles.title&&"TITLE",roles.subtitle&&"SUBTITLE",roles.body&&"BODY",roles.author&&"AUTHOR"].filter(Boolean).join(" • ");stage.innerHTML='<div class="slide-template-stage"><div class="slide-template-bg">'+templateSvg+'</div><div class="slide-template-content kitam-template-overlay-disabled"><div class="slide-template-badge">KITAM · OBJECT MAP '+escapeHtml(detected||"AUTO")+'</div></div></div>';}else{stage.innerHTML='<div class="slide-canvas '+layoutClass+'"><div class="slide-magic">KITAM · '+escapeHtml(p.style||"ARCANE")+'</div><h2>'+escapeHtml(s.title||"Untitled")+'</h2><div class="slide-body">'+escapeHtml(s.body||"").replace(/\n/g,"<br>")+'</div>'+((s.imageUrl)?'<img class="slide-image" src="'+escapeHtml(s.imageUrl)+'" alt="">':"")+'<div class="slide-foot">KitaM · '+(editorSlideIndex+1)+' / '+plan.length+'</div></div>';}$("#editorPageInfo").textContent="Slide "+(editorSlideIndex+1)+" / "+plan.length;$("#editTitle").value=s.title||"";$("#editBody").value=s.body||"";$("#editLayout").value=s.layout||"TITLE + CONTENT";const is=editorImages(p);$("#editImage").innerHTML='<option value="">Không dùng ảnh</option>'+is.map(x=>'<option value="'+escapeHtml(x.url)+'">'+escapeHtml(x.title||"Ảnh")+'</option>').join("");$("#editImage").value=s.imageUrl||"";const sources=p.sources||[];$("#editSources").innerHTML=sources.length?sources.map((x,i)=>'<div class="editor-source">['+(i+1)+'] '+escapeHtml(x.title||"Nguồn")+'</div>').join(""):'<div class="muted">Chưa gắn nguồn.</div>';}
-async function closeNativePptEditor(){try{nativePptView?.destroy?.();nativePptSelection?.destroy?.();nativePptSession?.dispose?.();}catch(e){}nativePptView=null;nativePptSelection=null;nativePptSession=null;const panel=$("#nativePptxPanel");if(panel)panel.hidden=true;}
-async function openNativePptEditor(){const p=getEditorProject();if(!p){toast("Hãy chọn project trước.");return}const t=templates.find(x=>x.id===p.templateId);if(!t||t.builtin||t.type!=="PPTX"){toast("Project này chưa dùng template PPTX thật.");return}const rec=await getFile(t.id);if(!rec){toast("Không tìm thấy file PPTX gốc.");return}await closeNativePptEditor();const panel=$("#nativePptxPanel"),canvas=$("#nativePptxCanvas"),pane=$("#nativePptxSelection");if(!panel||!canvas||!pane)return;panel.hidden=false;canvas.innerHTML='<div class="pptx-render-loading">✦ ĐANG MỞ EDITOR PPTX...</div>';pane.innerHTML="";try{const mod=await preloadPptxEditor();nativePptSession=await mod.openEditor(rec.blob);nativePptView=nativePptSession.mount(canvas,{mode:"edit",zoom:1,textMode:"auto",snapping:true});nativePptSelection=nativePptSession.mountSelectionPane(pane,{mode:"edit",slideId:nativePptView.slideId});toast("✦ Đã mở trình chỉnh sửa PPTX thật.");}catch(e){console.error("KitaM native PPTX editor:",e);canvas.innerHTML='<div class="empty">⚠ Không mở được editor PPTX. Hãy kiểm tra kết nối mạng/CDN rồi thử lại.</div>';toast("Không mở được editor PPTX.");}}
-async function saveNativePptEditor(){if(!nativePptSession){toast("Chưa mở editor.");return}const p=getEditorProject(),t=p&&templates.find(x=>x.id===p.templateId);if(!p||!t)return;try{const bytes=await nativePptSession.editor.save();const file=new File([bytes],t.fileName||((t.name||"template")+".pptx"),{type:"application/vnd.openxmlformats-officedocument.presentationml.presentation"});await putFile(t.id,file);t.size=file.size;t.fileName=file.name;t.desc="Đã chỉnh sửa trực tiếp • "+Math.round(file.size/1024)+" KB";saveMeta();await renderTemplates();toast("✦ Đã lưu thay đổi vào file PPTX gốc của template.");}catch(e){console.error("KitaM save PPTX:",e);toast("Không thể lưu PPTX: "+(e.message||e));}}
+scheduleNativePptWarm();function pptxWarmKey(t,blob){return pptxCacheKey(t?.id,blob);}
+async function getNativePptSession(t,blob){
+  const key=pptxWarmKey(t,blob);
+  if(nativePptWarmSession&&nativePptWarmKey===key)return nativePptWarmSession;
+  if(nativePptWarmPromise&&nativePptWarmKey===key)return await nativePptWarmPromise;
+  nativePptWarmKey=key;
+  nativePptWarmPromise=(async()=>{
+    const mod=await preloadPptxEditor();
+    const session=await mod.openEditor(blob);
+    if(nativePptWarmKey!==key){try{session.dispose?.();}catch(e){};return null;}
+    nativePptWarmSession=session;
+    return session;
+  })().catch(e=>{if(nativePptWarmKey===key){nativePptWarmPromise=null;nativePptWarmKey="";}throw e;});
+  return await nativePptWarmPromise;
+}
+function scheduleNativePptWarm(){
+  const p=getEditorProject();if(!p)return;
+  const t=templates.find(x=>x.id===p.templateId);
+  if(!t||t.builtin||t.type!=="PPTX")return;
+  getFile(t.id).then(rec=>{
+    if(!rec)return;
+    const key=pptxWarmKey(t,rec.blob);
+    if(nativePptWarmSession&&nativePptWarmKey===key)return;
+    const startWarm=()=>getNativePptSession(t,rec.blob).catch(e=>console.warn("KitaM background PPTX warm:",e));
+    if("requestIdleCallback"in window)requestIdleCallback(startWarm,{timeout:1200});
+    else setTimeout(startWarm,80);
+  }).catch(()=>{});
+}
+async function quickPptxPreview(canvas,blob,key){
+  try{
+    let svg=pptxQuickSvgCache.get(key);
+    if(!svg){svg=await renderPptxSlideSvg(blob,0);if(svg)pptxQuickSvgCache.set(key,svg);}
+    if(svg)canvas.innerHTML='<div class="native-quick-preview"><div class="native-quick-preview-art">'+svg+'</div><div class="native-quick-preview-note">✦ ĐANG NẠP OBJECT EDITOR…</div></div>';
+  }catch(e){
+    canvas.innerHTML='<div class="pptx-render-loading">✦ ĐANG MỞ EDITOR PPTX…</div>';
+  }
+}
+async function closeNativePptEditor(){
+  try{nativePptView?.destroy?.();nativePptSelection?.destroy?.();}catch(e){}
+  nativePptView=null;nativePptSelection=null;nativePptSession=null;
+  const panel=$("#nativePptxPanel");if(panel)panel.hidden=true;
+}
+async function openNativePptEditor(){
+  const p=getEditorProject();if(!p){toast("Hãy chọn project trước.");return}
+  const t=templates.find(x=>x.id===p.templateId);
+  if(!t||t.builtin||t.type!=="PPTX"){toast("Project này chưa dùng template PPTX thật.");return}
+  const rec=await getFile(t.id);if(!rec){toast("Không tìm thấy file PPTX gốc.");return}
+  await closeNativePptEditor();
+  const panel=$("#nativePptxPanel"),canvas=$("#nativePptxCanvas"),pane=$("#nativePptxSelection");
+  if(!panel||!canvas||!pane)return;
+  panel.hidden=false;pane.innerHTML="";
+  const key=pptxWarmKey(t,rec.blob);
+  await quickPptxPreview(canvas,rec.blob,key);
+  try{
+    const session=await getNativePptSession(t,rec.blob);
+    if(!session)throw new Error("Phiên editor đã bị thay thế.");
+    canvas.innerHTML="";
+    nativePptSession=session;
+    nativePptView=session.mount(canvas,{mode:"edit",zoom:1,textMode:"auto",snapping:true});
+    nativePptSelection=session.mountSelectionPane(pane,{mode:"edit",slideId:nativePptView.slideId});
+    toast("✦ Editor PPTX đã sẵn sàng.");
+  }catch(e){
+    console.error("KitaM native PPTX editor:",e);
+    canvas.innerHTML='<div class="empty">⚠ Không mở được editor PPTX. Hãy kiểm tra kết nối mạng/CDN rồi thử lại.</div>';
+    toast("Không mở được editor PPTX.");
+  }
+}
 function saveEditorSlide(){const p=getEditorProject();if(!p)return;const s=ensurePlan(p)[editorSlideIndex];if(!s)return;s.title=$("#editTitle").value;s.body=$("#editBody").value;s.layout=$("#editLayout").value;s.imageUrl=$("#editImage").value;saveMeta();renderEditor();toast("✦ Đã lưu slide "+(editorSlideIndex+1));}
 async function renderCreateTemplatePreview(){
   const host=$("#create .slide-preview");
@@ -218,7 +284,7 @@ async function renderCreateTemplatePreview(){
   }
 }
 
-function showPage(id){$$(".page").forEach(p=>p.classList.toggle("active",p.id===id));$$(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===id));window.scrollTo({top:0,behavior:"smooth"});if(id==="templates")renderTemplates();if(id==="projects")renderProjects();if(id==="research")renderSources();if(id==="images")renderImages();if(id==="create"){fillTemplateSelect();renderCreateTemplatePreview();}if(id==="editor"){fillEditorProjects();preloadPptxEditor();renderEditor();}}
+function showPage(id){$$(".page").forEach(p=>p.classList.toggle("active",p.id===id));$$(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===id));window.scrollTo({top:0,behavior:"smooth"});if(id==="templates")renderTemplates();if(id==="projects")renderProjects();if(id==="research")renderSources();if(id==="images")renderImages();if(id==="create"){fillTemplateSelect();renderCreateTemplatePreview();}if(id==="editor"){fillEditorProjects();renderEditor();}}
 $$("[data-page]").forEach(el=>el.addEventListener("click",()=>showPage(el.dataset.page)));
 
 function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(STORE))db.createObjectStore(STORE,{keyPath:"id"});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);})}
