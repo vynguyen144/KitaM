@@ -17,7 +17,7 @@ let imageSelected=new Set();
 let editorProjectId="";
 let editorSlideIndex=0;
 let editorRenderToken=0;
-let nativePptSession=null,nativePptView=null,nativePptSelection=null;
+let nativePptSession=null,nativePptView=null,nativePptSelection=null,nativePptFitObserver=null;
 let nativePptWarmSession=null,nativePptWarmPromise=null,nativePptWarmKey="";
 const pptxAnalysisCache=new Map();
 const pptxQuickSvgCache=new Map();
@@ -226,6 +226,8 @@ async function quickPptxPreview(canvas,blob,key){
   }catch(e){}
 }
 async function closeNativePptEditor(){
+  try{nativePptFitObserver?.disconnect?.();}catch(e){}
+  nativePptFitObserver=null;
   try{nativePptView?.destroy?.();nativePptSelection?.destroy?.();}catch(e){}
   nativePptView=null;nativePptSelection=null;nativePptSession=null;
   const panel=$("#nativePptxPanel");if(panel)panel.hidden=true;
@@ -249,6 +251,26 @@ async function openNativePptEditor(){
     canvas.innerHTML="";
     nativePptSession=session;
     nativePptView=session.mount(canvas,{mode:"edit",zoom:1,textMode:"auto",snapping:true});
+
+    // IMPORTANT: never CSS-scale the native editor. Its SVG interaction layer,
+    // handles and HTML text editor must use the same zoom as the slide renderer.
+    const fitNativePptView=()=>{
+      try{
+        if(!nativePptView||!canvas)return;
+        const svg=canvas.querySelector("svg");
+        const vb=svg?.viewBox?.baseVal;
+        const sw=vb?.width||svg?.width?.baseVal?.value||1280;
+        const sh=vb?.height||svg?.height?.baseVal?.value||720;
+        const cw=Math.max(320,canvas.clientWidth-48);
+        const ch=Math.max(240,canvas.clientHeight-48);
+        const z=Math.max(.25,Math.min(4,cw/sw,ch/sh));
+        nativePptView.setZoom(z);
+      }catch(e){console.warn("KitaM PPTX fit:",e);}
+    };
+    requestAnimationFrame(()=>requestAnimationFrame(fitNativePptView));
+    nativePptFitObserver=new ResizeObserver(()=>requestAnimationFrame(fitNativePptView));
+    nativePptFitObserver.observe(canvas);
+
     nativePptSelection=session.mountSelectionPane(pane,{mode:"edit",slideId:nativePptView.slideId});
     toast("✦ Editor PPTX đã sẵn sàng.");
   }catch(e){
