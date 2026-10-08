@@ -257,6 +257,28 @@ async function openNativePptEditor(){
     toast("Không mở được editor PPTX.");
   }
 }
+async function saveNativePptEditor(){
+  if(!nativePptSession?.editor){toast("Editor PPTX chưa sẵn sàng.");return}
+  const p=getEditorProject();
+  const t=p?templates.find(x=>x.id===p.templateId):null;
+  try{
+    const bytes=await nativePptSession.editor.save();
+    const base=(t?.name||"KitaM-Presentation").replace(/[\\/:*?"<>|]+/g,"-").trim()||"KitaM-Presentation";
+    const file=new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.presentationml.presentation"});
+    const url=URL.createObjectURL(file);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=base+"-edited.pptx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    toast("✦ Đã xuất PPTX đã chỉnh sửa.");
+  }catch(e){
+    console.error("KitaM save PPTX:",e);
+    toast("Không thể lưu PPTX. Hãy thử lại.");
+  }
+}
 function saveEditorSlide(){const p=getEditorProject();if(!p)return;const s=ensurePlan(p)[editorSlideIndex];if(!s)return;s.title=$("#editTitle").value;s.body=$("#editBody").value;s.layout=$("#editLayout").value;s.imageUrl=$("#editImage").value;saveMeta();renderEditor();toast("✦ Đã lưu slide "+(editorSlideIndex+1));}
 async function renderCreateTemplatePreview(){
   const host=$("#create .slide-preview");
