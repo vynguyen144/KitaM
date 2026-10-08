@@ -353,8 +353,8 @@ function typeOf(name){const e=extOf(name);if(["ppt","pptx"].includes(e))return"P
 function iconFor(type){return type==="PPTX"?"▣":type==="PDF"?"📕":type==="DOCX"?"📘":"🖼";}
 
 async function renderTemplates(){
- const q=(q("#templateSearch")?.value||"").toLowerCase(),filter=document.querySelector(".chip.active")?.dataset.filter||"all";
- const list=templates.filter(t=>(!q||String(t.name||"").toLowerCase().includes(q)||String(t.desc||"").toLowerCase().includes(q))&&(filter==="all"||t.type.toLowerCase()===filter));
+ const searchText=(q("#templateSearch")?.value||"").toLowerCase(),filter=document.querySelector(".chip.active")?.dataset.filter||"all";
+ const list=templates.filter(t=>(!searchText||String(t.name||"").toLowerCase().includes(searchText)||String(t.desc||"").toLowerCase().includes(searchText))&&(filter==="all"||t.type.toLowerCase()===filter));
  const grid=q("#templateGrid");
  grid.innerHTML=list.length?list.map(t=>`<article class="template-card" data-card="${t.id}"><div class="template-thumb" id="thumb-${t.id}">${t.icon||"📄"}<span class="thumb-loading">LOADING</span></div><div class="template-body"><strong>${escapeHtml(t.name)}</strong><small>${escapeHtml(t.type)} • ${escapeHtml(t.desc)}</small><div class="card-actions"><button class="ghost-btn" data-preview-template="${t.id}">Xem mẫu</button><button class="magic-btn mini" data-use-template="${t.id}">Dùng mẫu</button>${!t.builtin?'<button class="danger-btn mini" data-delete-template="'+t.id+'">Xóa</button>':""}</div></div></article>`).join(""):`<div class="empty">Không tìm thấy template phù hợp.</div>`;
  for(const t of list)await makeThumbnail(t);
