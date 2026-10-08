@@ -46,22 +46,59 @@ function pptxShapeInfo(shape){
   const sizes=[...xmlEls(shape,PPTX_NS.a,"rPr"),...xmlEls(shape,PPTX_NS.a,"defRPr")].map(x=>Number(x.getAttribute("sz")||0)/100).filter(Boolean);
   return {shape,id:c?.getAttribute("id")||"",name:c?.getAttribute("name")||"",text:texts,placeholder:ph?.getAttribute("type")||"",x:Number(off?.getAttribute("x")||0),y:Number(off?.getAttribute("y")||0),w:Number(ext?.getAttribute("cx")||0),h:Number(ext?.getAttribute("cy")||0),fontSize:sizes.length?Math.max(...sizes):0};
 }
+function isAllCapsLabel(text){
+  const t=String(text||"").trim();
+  if(!t||t.length>40)return false;
+  const letters=t.replace(/[^A-Za-zÀ-ỸĐà-ỹđ]/g,"");
+  return !!letters&&letters===letters.toUpperCase();
+}
+function isBrandLabel(text){
+  const low=String(text||"").trim().toLowerCase();
+  return /^(travel|tourism|business|company|agency|studio|creative|design|portfolio|presentation|report|project|welcome|hello|brand|logo|kitam|vietnam travel)$/.test(low);
+}
+function isAuthorLike(o){
+  const t=o.text.trim(),low=t.toLowerCase();
+  if(/(?:@|https?:\/\/)/i.test(t))return true;
+  if(/(?:author|presented by|người trình bày|sinh viên|học viên|giảng viên|lớp|khoa|viện|đại học|university|school)/i.test(low))return true;
+  if(/\s[-–—]\s/.test(t)&&t.split(/\s+/).length>=3)return true;
+  if(t.split(/\s+/).length>=5&&o.fontSize<=36)return true;
+  return false;
+}
 function templateTextRole(o,all){
-  const ph=o.placeholder.toLowerCase();
+  const ph=o.placeholder.toLowerCase(),t=o.text.trim(),low=t.toLowerCase();
+  if(!t)return"decorative";
   if(["title","ctrtitle"].includes(ph))return"title";
   if(["subtitle"].includes(ph))return"subtitle";
   if(["body","obj","text"].includes(ph))return"body";
   if(["ftr","sldnum","dt"].includes(ph))return"footer";
-  const t=o.text.trim(), low=t.toLowerCase();
-  if(!t)return"decorative";
+  if(isAuthorLike(o))return"author";
   if(/^(?:slide|trang)\s*\d+$/i.test(t)||/^(?:www\.|https?:\/\/)/i.test(t))return"footer";
-  if(/\b(?:author|presented by|người trình bày|sinh viên|học viên|lớp|khoa)\b/i.test(t))return"author";
-  if(/^[A-ZÀ-ỸĐ0-9][A-ZÀ-ỸĐ0-9\s&'’.-]{2,24}$/.test(t)&&t.split(/\s+/).length<=3)return"decorative";
-  const maxFont=Math.max(...all.map(x=>x.fontSize||0),1);
-  if((o.fontSize>=Math.max(20,maxFont*.55)||o.h>0&&o.w>0&&o.w/o.h>3)&&t.length>=8&&t.split(/\s+/).length>=2)return"titleCandidate";
+  if(isBrandLabel(t)||isAllCapsLabel(t)&&t.length<=24)return"decorative";
   if(/\b(?:khám phá|giới thiệu|tổng quan|mục tiêu|thông điệp|overview|introduction)\b/i.test(low))return"subtitle";
+  const maxFont=Math.max(...all.map(x=>x.fontSize||0),1);
+  const ratio=o.w&&o.h?o.w/o.h:0;
+  const mixedCase=/[a-zà-ỹđ]/.test(t)&&/[A-ZÀ-ỸĐ]/.test(t);
+  if((o.fontSize>=Math.max(20,maxFont*.48)||ratio>3.2)&&t.length>=5&&t.split(/\s+/).length<=8){
+    return mixedCase?"titleCandidate":"decorative";
+  }
   if(t.length<=110&&o.y>0)return"bodyCandidate";
   return"decorative";
+}
+function scoreTitleCandidate(o,all){
+  const maxFont=Math.max(...all.map(x=>x.fontSize||0),1);
+  const ratio=o.w&&o.h?o.w/o.h:0;
+  const t=o.text.trim();
+  let score=(o.fontSize/maxFont)*60;
+  if(/[a-zà-ỹđ]/.test(t)&&/[A-ZÀ-ỸĐ]/.test(t))score+=24;
+  if(t.split(/\s+/).length>=2&&t.split(/\s+/).length<=8)score+=10;
+  if(ratio>2.5)score+=8;
+  if(isBrandLabel(t)||isAllCapsLabel(t))score-=80;
+  if(isAuthorLike(o))score-=100;
+  if(o.y>0)score+=Math.max(0,18-(o.y/100000));
+  return score;
+}
+function pickBest(list,all,scoreFn){
+  return list.slice().sort((a,b)=>scoreFn(b,all)-scoreFn(a,all))[0]||null;
 }
 async function analyzePptxSlide(blob,index=0){
   const zip=await JSZip.loadAsync(blob);
@@ -71,30 +108,47 @@ async function analyzePptxSlide(blob,index=0){
   const doc=new DOMParser().parseFromString(xml,"application/xml");
   const shapes=xmlEls(doc,PPTX_NS.p,"sp").map(pptxShapeInfo).filter(o=>o.text);
   const tagged=shapes.map(o=>({...o,role:templateTextRole(o,shapes)}));
-  const titleCandidates=tagged.filter(o=>["title","titleCandidate"].includes(o.role)).sort((a,b)=>(b.fontSize-a.fontSize)||a.y-b.y);
-  const subtitleCandidates=tagged.filter(o=>o.role==="subtitle").sort((a,b)=>a.y-b.y);
-  const bodyCandidates=tagged.filter(o=>o.role==="body"||o.role==="bodyCandidate").sort((a,b)=>a.y-b.y);
-  const authorCandidates=tagged.filter(o=>o.role==="author").sort((a,b)=>a.y-b.y);
-  if(!titleCandidates.length){
-    const fallback=tagged.filter(o=>o.role!=="decorative"&&o.role!=="footer").sort((a,b)=>(b.fontSize-a.fontSize)||a.y-b.y)[0];
-    if(fallback)titleCandidates.push(fallback);
+  const placeholders={
+    title:tagged.find(o=>["title","ctrtitle"].includes(o.placeholder.toLowerCase()))||null,
+    subtitle:tagged.find(o=>o.placeholder.toLowerCase()==="subtitle")||null,
+    body:tagged.find(o=>["body","obj","text"].includes(o.placeholder.toLowerCase()))||null,
+    author:null
+  };
+  const used=new Set(Object.values(placeholders).filter(Boolean));
+  const authorCandidates=tagged.filter(o=>!used.has(o)&&o.role==="author").sort((a,b)=>a.y-b.y);
+  const author=authorCandidates[0]||null;
+  if(author)used.add(author);
+
+  const titlePool=tagged.filter(o=>!used.has(o)&&["titleCandidate","title"].includes(o.role));
+  const title=placeholders.title||pickBest(titlePool,tagged,scoreTitleCandidate);
+  if(title)used.add(title);
+
+  const subtitlePool=tagged.filter(o=>!used.has(o)&&o.role==="subtitle");
+  const subtitle=placeholders.subtitle||pickBest(subtitlePool,tagged,(o)=>((o.y>(title?.y||0)?30:0)+(o.fontSize||0)));
+  if(subtitle)used.add(subtitle);
+
+  const bodyPool=tagged.filter(o=>!used.has(o)&&["body","bodyCandidate"].includes(o.role));
+  const body=placeholders.body||bodyPool.sort((a,b)=>a.y-b.y)[0]||null;
+
+  let finalAuthor=author;
+  if(!finalAuthor){
+    const lower=tagged.filter(o=>!used.has(o)&&o.y>350000&&o.text.split(/\s+/).length>=3);
+    finalAuthor=lower.sort((a,b)=>(a.fontSize-b.fontSize)||(b.y-a.y))[0]||null;
   }
-  if(!subtitleCandidates.length){
-    const cand=tagged.filter(o=>o!==titleCandidates[0]&&o.role!=="decorative"&&o.role!=="footer").sort((a,b)=>a.y-b.y)[0];
-    if(cand&&cand!==titleCandidates[0])subtitleCandidates.push(cand);
-  }
-  if(!authorCandidates.length){
-    const cand=tagged.filter(o=>o!==titleCandidates[0]&&o!==subtitleCandidates[0]&&o.role!=="decorative"&&o.role!=="footer").sort((a,b)=>b.y-a.y)[0];
-    if(cand&&cand!==titleCandidates[0]&&cand!==subtitleCandidates[0])authorCandidates.push(cand);
-  }
-  return {zip,xml,doc,slideName:name,objects:tagged,roles:{title:titleCandidates[0]||null,subtitle:subtitleCandidates[0]||null,body:bodyCandidates[0]||null,author:authorCandidates[0]||null,footer:tagged.find(o=>o.role==="footer")||null}};
+
+  const confidence={
+    title:title?(placeholders.title?100:scoreTitleCandidate(title,tagged)):0,
+    subtitle:subtitle?(placeholders.subtitle?100:55):0,
+    body:body?(placeholders.body?100:45):0,
+    author:finalAuthor?(author?100:65):0
+  };
+  return {zip,xml,doc,slideName:name,objects:tagged,roles:{title,subtitle,body,author:finalAuthor,footer:tagged.find(o=>o.role==="footer")||null},confidence,placeholders};
 }
 function setPptxShapeText(shape,value){
-  const paras=xmlEls(shape,PPTX_NS.a,"p");
-  const lines=String(value??"").split(/\n+/).filter(x=>x.trim()!=="");
-  const compact=lines.length>1?lines.join(" • "):(lines[0]||"");
   const textNodes=xmlEls(shape,PPTX_NS.a,"t");
   if(!textNodes.length)return false;
+  const lines=String(value??"").split(/\r?\n/).filter(x=>x.trim()!=="");
+  const compact=lines.length>1?lines.join(" • "):(lines[0]||"");
   textNodes.forEach((n,i)=>{n.textContent=i===0?compact:"";});
   return true;
 }
@@ -103,11 +157,14 @@ async function applySemanticTemplate(blob,index,slideData){
   const s=slideData||{};
   const isCover=String(s.layout||"").toUpperCase()==="COVER"||index===0;
   const values={};
-  if(a.roles.title)values.title=s.title||"";
-  if(a.roles.subtitle)values.subtitle=isCover?(s.body||""):"";
-  if(a.roles.author)values.author=isCover?([s.author,s.organization].filter(Boolean).join(" • ")||s.body||""):"";
-  if(a.roles.body)values.body=s.body||"";
-  for(const [role,obj] of Object.entries(a.roles)){if(obj&&Object.prototype.hasOwnProperty.call(values,role))setPptxShapeText(obj.shape,values[role]);}
+  const can=role=>a.roles[role]&&((a.placeholders&&a.placeholders[role])||a.confidence?.[role]>=70);
+  if(can("title"))values.title=s.title||"";
+  if(can("subtitle")&&(!isCover||a.placeholders?.subtitle))values.subtitle=isCover?(s.subtitle||""):"";
+  if(can("author"))values.author=isCover?([s.author,s.organization].filter(Boolean).join(" • ")||s.author||""):"";
+  if(can("body"))values.body=s.body||"";
+  for(const [role,obj] of Object.entries(a.roles)){
+    if(obj&&Object.prototype.hasOwnProperty.call(values,role))setPptxShapeText(obj.shape,values[role]);
+  }
   const out=new XMLSerializer().serializeToString(a.doc);
   await a.zip.file(a.slideName,out);
   const bytes=await a.zip.generateAsync({type:"uint8array"});
