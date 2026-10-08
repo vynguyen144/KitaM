@@ -72,7 +72,7 @@ async function makeThumbnail(t){
  try{
   if(t.type==="IMAGE"){const url=URL.createObjectURL(rec.blob);el.innerHTML=`<img src="${url}" alt="">`;return}
   if(t.type==="PDF"){el.innerHTML="";const canvas=document.createElement("canvas");canvas.className="pdf-thumb";el.append(canvas);await renderPdfPage(rec.blob,1,canvas);return}
-  if(t.type==="PPTX"){const info=await parsePptx(rec.blob);el.innerHTML=`<div class="ppt-mini"><b>SLIDE 01</b><span>${escapeHtml(info.slides[0]?.title||info.slides[0]?.texts?.[0]||"PPTX TEMPLATE")}</span><small>${info.slides.length} slide • ${escapeHtml(info.slides[0]?.texts?.slice(1,4).join(" · ")||"")}</small></div>`;return}
+  if(t.type==="PPTX"){el.innerHTML='<div class="pptx-render-loading">ĐANG RENDER SLIDE...</div>';const svg=await renderPptxSlideSvg(rec.blob,0);el.innerHTML=svg?'<div class="pptx-thumb-render">'+svg+'</div>':'<div class="doc-mini">⚠️<b>Không render được</b><small>File vẫn được giữ nguyên</small></div>';return}
   el.innerHTML=`<div class="doc-mini">📘<b>DOCX</b><small>File đã lưu</small></div>`;
  }catch(e){el.innerHTML=`<div class="doc-mini">⚠️<b>Không đọc được</b></div>`;}
 }
@@ -83,6 +83,23 @@ async function renderPdfPage(blob,pageNo,canvas){
  const base=page.getViewport({scale:1}),scale=Math.min(1.7,480/base.width),vp=page.getViewport({scale});
  canvas.width=vp.width;canvas.height=vp.height;await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
 }
+let kitamPptxEnginePromise=null;
+async function getPptxEngine(){
+ if(!kitamPptxEnginePromise){
+  kitamPptxEnginePromise=import("https://cdn.jsdelivr.net/npm/@web-ppt/core@0.4.5/+esm").then(m=>{
+   if(!m.parse||!m.renderSlideToSvg)throw new Error("PPTX renderer không đầy đủ.");
+   return m;
+  });
+ }
+ return kitamPptxEnginePromise;
+}
+async function renderPptxSlideSvg(blob,index=0){
+ const engine=await getPptxEngine();
+ const pres=await engine.parse(blob);
+ const slide=pres.slides[index];
+ if(!slide)return "";
+ return engine.renderSlideToSvg(pres,slide);
+}
 async function parsePptx(blob){
  const zip=await JSZip.loadAsync(blob),names=Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a,b)=>Number(a.match(/\d+/)[0])-Number(b.match(/\d+/)[0]));
  const slides=[];for(const name of names){const xml=await zip.file(name).async("text"),doc=new DOMParser().parseFromString(xml,"application/xml");const texts=[...doc.getElementsByTagName("a:t")].map(x=>x.textContent.trim()).filter(Boolean);slides.push({name,texts,title:texts[0]||""});}return{slides};
@@ -92,7 +109,7 @@ async function previewTemplate(id){
  if(t.builtin){toast("✦ Đây là mẫu demo giao diện của B1.");return}
  const rec=await getFile(id);if(!rec)return;
  if(t.type==="PDF"){const pdf=await window.pdfjsLib.getDocument({data:await rec.blob.arrayBuffer()}).promise;const pages=Math.min(pdf.numPages,8);let html="";for(let i=1;i<=pages;i++)html+=`<div class="preview-page"><canvas id="modal-pdf-${i}"></canvas><span>Trang ${i}</span></div>`;showModal(`📕 ${t.name} — ${pdf.numPages} trang`,html);for(let i=1;i<=pages;i++)renderPdfPage(rec.blob,i,$("#modal-pdf-"+i));return}
- if(t.type==="PPTX"){const info=await parsePptx(rec.blob);const html=info.slides.map((s,i)=>`<div class="slide-structure"><b>SLIDE ${String(i+1).padStart(2,"0")}</b><strong>${escapeHtml(s.title||"Không có tiêu đề")}</strong><p>${escapeHtml(s.texts.slice(1,12).join(" • ")||"Không tìm thấy text")}</p></div>`).join("");showModal(`▣ ${t.name} — ${info.slides.length} slide`,html);return}
+ if(t.type==="PPTX"){const info=await parsePptx(rec.blob);const html='<div class="pptx-preview-list">'+info.slides.map((s,i)=>`<div class="pptx-preview-item"><div class="pptx-preview-label">SLIDE ${String(i+1).padStart(2,"0")}</div><div id="pptx-preview-${i}" class="pptx-preview-canvas"><span>ĐANG RENDER...</span></div></div>`).join("")+'</div>';showModal(`▣ ${t.name} — ${info.slides.length} slide`,html);for(let i=0;i<info.slides.length;i++){renderPptxSlideSvg(rec.blob,i).then(svg=>{const host=$(`#pptx-preview-${i}`);if(host)host.innerHTML=svg||'<span>Không render được slide này.</span>';}).catch(err=>{const host=$(`#pptx-preview-${i}`);if(host)host.innerHTML='<span>Không render được slide này.</span>';console.warn("KitaM PPTX preview:",err);});}return}
  if(t.type==="IMAGE"){showModal(`🖼 ${t.name}`,`<img class="full-image" src="${URL.createObjectURL(rec.blob)}" alt="">`);return}
  showModal(`📘 ${t.name}`,`<div class="slide-structure">DOCX đã được lưu an toàn. Phân tích nội dung DOCX sẽ được hoàn thiện ở bước B3.</div>`);
 }
