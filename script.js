@@ -194,6 +194,7 @@ async function getNativePptSession(t,blob){
   const key=pptxWarmKey(t,blob);
   if(nativePptWarmSession&&nativePptWarmKey===key)return nativePptWarmSession;
   if(nativePptWarmPromise&&nativePptWarmKey===key)return await nativePptWarmPromise;
+  if(nativePptWarmSession&&nativePptWarmKey!==key){try{nativePptWarmSession.dispose?.();}catch(e){}nativePptWarmSession=null;}
   nativePptWarmKey=key;
   nativePptWarmPromise=(async()=>{
     const mod=await preloadPptxEditor();
@@ -221,10 +222,8 @@ async function quickPptxPreview(canvas,blob,key){
   try{
     let svg=pptxQuickSvgCache.get(key);
     if(!svg){svg=await renderPptxSlideSvg(blob,0);if(svg)pptxQuickSvgCache.set(key,svg);}
-    if(svg)canvas.innerHTML='<div class="native-quick-preview"><div class="native-quick-preview-art">'+svg+'</div><div class="native-quick-preview-note">✦ ĐANG NẠP OBJECT EDITOR…</div></div>';
-  }catch(e){
-    canvas.innerHTML='<div class="pptx-render-loading">✦ ĐANG MỞ EDITOR PPTX…</div>';
-  }
+    if(svg&&!canvas.dataset.editorReady)canvas.innerHTML='<div class="native-quick-preview"><div class="native-quick-preview-art">'+svg+'</div><div class="native-quick-preview-note">✦ ĐANG NẠP OBJECT EDITOR…</div></div>';
+  }catch(e){}
 }
 async function closeNativePptEditor(){
   try{nativePptView?.destroy?.();nativePptSelection?.destroy?.();}catch(e){}
@@ -239,12 +238,14 @@ async function openNativePptEditor(){
   await closeNativePptEditor();
   const panel=$("#nativePptxPanel"),canvas=$("#nativePptxCanvas"),pane=$("#nativePptxSelection");
   if(!panel||!canvas||!pane)return;
-  panel.hidden=false;pane.innerHTML="";
+  panel.hidden=false;pane.innerHTML="";canvas.dataset.editorReady="";
   const key=pptxWarmKey(t,rec.blob);
-  await quickPptxPreview(canvas,rec.blob,key);
+  canvas.innerHTML='<div class="pptx-render-loading">✦ ĐANG NẠP OBJECT EDITOR…</div>';
+  const previewPromise=quickPptxPreview(canvas,rec.blob,key);
   try{
     const session=await getNativePptSession(t,rec.blob);
     if(!session)throw new Error("Phiên editor đã bị thay thế.");
+    canvas.dataset.editorReady="1";
     canvas.innerHTML="";
     nativePptSession=session;
     nativePptView=session.mount(canvas,{mode:"edit",zoom:1,textMode:"auto",snapping:true});
@@ -284,7 +285,7 @@ async function renderCreateTemplatePreview(){
   }
 }
 
-function showPage(id){$$(".page").forEach(p=>p.classList.toggle("active",p.id===id));$$(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===id));window.scrollTo({top:0,behavior:"smooth"});if(id==="templates")renderTemplates();if(id==="projects")renderProjects();if(id==="research")renderSources();if(id==="images")renderImages();if(id==="create"){fillTemplateSelect();renderCreateTemplatePreview();}if(id==="editor"){fillEditorProjects();renderEditor();}}
+function showPage(id){$$(".page").forEach(p=>p.classList.toggle("active",p.id===id));$$(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===id));window.scrollTo({top:0,behavior:"smooth"});if(id==="templates")renderTemplates();if(id==="projects")renderProjects();if(id==="research")renderSources();if(id==="images")renderImages();if(id==="create"){fillTemplateSelect();renderCreateTemplatePreview();}if(id==="editor"){fillEditorProjects();scheduleNativePptWarm();renderEditor();}}
 $$("[data-page]").forEach(el=>el.addEventListener("click",()=>showPage(el.dataset.page)));
 
 function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(STORE))db.createObjectStore(STORE,{keyPath:"id"});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);})}
