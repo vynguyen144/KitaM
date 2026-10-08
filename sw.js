@@ -1,5 +1,5 @@
-const CACHE = "kitam-shell-v21";
-const ASSETS = ["./","./index.html","./style.css","./script.js?v=21","./manifest.json"];
+const CACHE = "kitam-shell-v22";
+const ASSETS = ["./","./index.html","./style.css","./script.js?v=22","./manifest.json"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
